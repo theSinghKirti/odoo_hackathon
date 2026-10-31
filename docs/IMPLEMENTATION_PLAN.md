@@ -83,37 +83,37 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 - [x] Build `QuotationService` to calculate expiry date and quote totals with taxes and discounts.
 - [x] Build **Atomic Conversion Service**: converts confirmed quote into a live `Subscription` in one transaction.
 
-#### Milestone B6: Subscription State Machine
-- [ ] Create `Subscription` and `SubscriptionLine` models (`SUB-YYYY-XXXX`).
-- [ ] Implement state machine transitions: `Draft → Quotation → Confirmed → Active → Closed`.
-- [ ] Implement `pause_subscription()`, `resume_subscription()`, and `close_subscription()` services enforcing plan policies.
+#### Milestone B6: Subscription State Machine *(Completed)*
+- [x] Create `Subscription` and `SubscriptionLine` models (`SUB-YYYY-XXXX`).
+- [x] Implement state machine transitions: `Draft → Quotation → Confirmed → Active → Closed`.
+- [x] Implement `pause_subscription()`, `resume_subscription()`, and `close_subscription()` services enforcing plan policies.
 
-#### Milestone B7: Automated Billing Day & Invoicing Worker
-- [ ] Create `Invoice` and `InvoiceLine` models (`INV-YYYY-XXXX`, `Draft → Confirmed → Paid`).
-- [ ] Configure Celery with Redis broker for background scheduling.
-- [ ] Implement idempotent Billing Sweep task using `SELECT ... FOR UPDATE SKIP LOCKED`:
+#### Milestone B7: Automated Billing Day & Invoicing Worker *(Completed)*
+- [x] Create `Invoice` and `InvoiceLine` models (`INV-YYYY-XXXX`, `Draft → Confirmed → Paid`).
+- [x] Configure Celery with Redis broker for background scheduling.
+- [x] Implement idempotent Billing Sweep task using `SELECT ... FOR UPDATE SKIP LOCKED`:
   - Finds active subscriptions where `next_billing_date <= today`.
   - Generates invoice, computes taxes/discounts, advances `next_billing_date`, and records `last_billed_date`.
-- [ ] Implement invoice actions: `confirm_invoice()`, `cancel_invoice()`.
+- [x] Implement invoice actions: `confirm_invoice()`, `cancel_invoice()`.
 
 #### Milestone B8: Multi-Method Payment Ledger & Razorpay Integration
-- [ ] Create `Payment` model (method, amount, payment date, note, status, Razorpay IDs).
-- [ ] Build Offline Payment service: records manual payments (Bank Transfer, Cheque, Cash), decrements `amount_due`, and marks invoice `Paid` when balance is 0.
-- [ ] Integrate Razorpay SDK: order creation and server-side HMAC-SHA256 signature verification.
-- [ ] Build webhook handler with duplicate event prevention.
+- [x] Create `Payment` model (method, amount, payment date, note, status, Razorpay IDs).
+- [x] Build Offline Payment service: records manual payments (Bank Transfer, Cheque, Cash), decrements `amount_due`, and marks invoice `Paid` when balance is 0.
+- [x] Integrate Razorpay SDK: order creation and server-side HMAC-SHA256 signature verification.
+- [x] Build webhook handler with duplicate event prevention.
 
 #### Milestone B9: Reporting & Analytical Aggregations
-- [ ] Build `AnalyticsService` executing raw SQL aggregations:
+- [x] Build `AnalyticsService` executing raw SQL aggregations:
   - Active subscriptions count.
   - MRR & ARR calculation across daily, weekly, monthly, and yearly intervals.
   - Total collected revenue in period.
   - Overdue invoices count and total amount.
-- [ ] Apply database covering indexes to guarantee query execution in $< 50\text{ ms}$.
+- [x] Apply database covering indexes to guarantee query execution in $< 50\text{ ms}$.
 
-#### Milestone B10: Backend Test Suite & Isolation Verification
-- [ ] Write unit tests for variant math, discount limits, and password validation.
-- [ ] Write integration tests for billing runs, quotation conversion, and Razorpay signature checks.
-- [ ] Write multi-tenant isolation tests (verifying Org A cannot read Org B).
+#### Milestone B10: Backend Test Suite & Isolation Verification *(Completed)*
+- [x] Write unit tests for variant math, discount limits, and password validation.
+- [x] Write integration tests for billing runs, quotation conversion, and Razorpay signature checks.
+- [x] Write multi-tenant isolation tests (verifying Org A cannot read Org B).
 
 ---
 

@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from app.models.quotation_template import QuotationTemplate
     from app.models.quotation import Quotation
     from app.models.subscription import Subscription
+    from app.models.invoice import Invoice
+    from app.models.payment import Payment
 
 
 class Organization(Base, TimestampMixin):
@@ -24,7 +26,7 @@ class Organization(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
@@ -73,7 +75,16 @@ class Organization(Base, TimestampMixin):
         back_populates="organization",
         cascade="all, delete-orphan",
     )
+    invoices: Mapped[List["Invoice"]] = relationship(
+        "Invoice",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Organization(id={self.id}, name='{self.name}', slug='{self.slug}')>"
-

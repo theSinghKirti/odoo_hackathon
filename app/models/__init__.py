@@ -10,6 +10,8 @@ from app.models.discount import DiscountRule, DiscountType, DiscountScope
 from app.models.quotation_template import QuotationTemplate, QuotationTemplateLine
 from app.models.quotation import Quotation, QuotationLine, QuotationStatus
 from app.models.subscription import Subscription, SubscriptionLine, SubscriptionStatus
+from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
 
 __all__ = [
     "Base",
@@ -36,4 +38,10 @@ __all__ = [
     "Subscription",
     "SubscriptionLine",
     "SubscriptionStatus",
+    "Invoice",
+    "InvoiceLine",
+    "InvoiceStatus",
+    "Payment",
+    "PaymentMethod",
+    "PaymentStatus",
 ]

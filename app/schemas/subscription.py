@@ -60,3 +60,8 @@ class SubscriptionResponse(BaseModel):
     lines: List[SubscriptionLineResponse] = []
     created_at: datetime
     updated_at: datetime
+
+
+class SubscriptionCloseRequest(BaseModel):
+    reason: Optional[str] = None
+
