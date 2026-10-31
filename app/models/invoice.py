@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.customer import Customer
     from app.models.discount import DiscountRule
     from app.models.organization import Organization
+    from app.models.payment import Payment
     from app.models.product import Product, ProductVariant
     from app.models.subscription import Subscription
     from app.models.tax import TaxRule
@@ -105,6 +106,13 @@ class Invoice(Base, TimestampMixin):
         back_populates="invoice",
         cascade="all, delete-orphan",
         order_by="InvoiceLine.id",
+        lazy="selectin",
+    )
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="Payment.id",
         lazy="selectin",
     )
 

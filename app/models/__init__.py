@@ -11,6 +11,7 @@ from app.models.quotation_template import QuotationTemplate, QuotationTemplateLi
 from app.models.quotation import Quotation, QuotationLine, QuotationStatus
 from app.models.subscription import Subscription, SubscriptionLine, SubscriptionStatus
 from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
 
 __all__ = [
     "Base",
@@ -40,4 +41,7 @@ __all__ = [
     "Invoice",
     "InvoiceLine",
     "InvoiceStatus",
+    "Payment",
+    "PaymentMethod",
+    "PaymentStatus",
 ]

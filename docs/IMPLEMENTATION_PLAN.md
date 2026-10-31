@@ -97,18 +97,18 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 - [x] Implement invoice actions: `confirm_invoice()`, `cancel_invoice()`.
 
 #### Milestone B8: Multi-Method Payment Ledger & Razorpay Integration
-- [ ] Create `Payment` model (method, amount, payment date, note, status, Razorpay IDs).
-- [ ] Build Offline Payment service: records manual payments (Bank Transfer, Cheque, Cash), decrements `amount_due`, and marks invoice `Paid` when balance is 0.
-- [ ] Integrate Razorpay SDK: order creation and server-side HMAC-SHA256 signature verification.
-- [ ] Build webhook handler with duplicate event prevention.
+- [x] Create `Payment` model (method, amount, payment date, note, status, Razorpay IDs).
+- [x] Build Offline Payment service: records manual payments (Bank Transfer, Cheque, Cash), decrements `amount_due`, and marks invoice `Paid` when balance is 0.
+- [x] Integrate Razorpay SDK: order creation and server-side HMAC-SHA256 signature verification.
+- [x] Build webhook handler with duplicate event prevention.
 
 #### Milestone B9: Reporting & Analytical Aggregations
-- [ ] Build `AnalyticsService` executing raw SQL aggregations:
+- [x] Build `AnalyticsService` executing raw SQL aggregations:
   - Active subscriptions count.
   - MRR & ARR calculation across daily, weekly, monthly, and yearly intervals.
   - Total collected revenue in period.
   - Overdue invoices count and total amount.
-- [ ] Apply database covering indexes to guarantee query execution in $< 50\text{ ms}$.
+- [x] Apply database covering indexes to guarantee query execution in $< 50\text{ ms}$.
 
 #### Milestone B10: Backend Test Suite & Isolation Verification
 - [ ] Write unit tests for variant math, discount limits, and password validation.

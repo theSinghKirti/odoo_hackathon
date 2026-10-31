@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Razorpay Gateway
+    RAZORPAY_KEY_ID: str = "rzp_test_mock_key_id"
+    RAZORPAY_KEY_SECRET: str = "rzp_test_mock_secret_key"
+    RAZORPAY_WEBHOOK_SECRET: str = "rzp_test_mock_webhook_secret"
+
     # Reference Organization Seed
     INITIAL_TENANT_NAME: str = "Brightloop Software"
     INITIAL_TENANT_SLUG: str = "brightloop-software"
