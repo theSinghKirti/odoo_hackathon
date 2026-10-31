@@ -288,3 +288,4 @@ function renderPaymentFeedback(status, data) {
   }
   target.innerHTML = html;
 }
+
