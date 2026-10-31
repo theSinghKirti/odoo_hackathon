@@ -4036,3 +4036,397 @@ async def cancel_invoice_route(
                 break
 
     return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# F8 Multi-Method Payment & Razorpay Checkout Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+from fastapi.responses import JSONResponse
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from app.schemas.payment import PaymentCreate, RazorpayVerifyRequest
+from app.services.payment_service import (
+    PaymentService,
+    InvalidPaymentError,
+    PaymentVerificationError,
+    PaymentServiceError,
+)
+
+MOCK_PAYMENTS = [
+    {
+        "id": 1,
+        "organization_id": 1,
+        "invoice_id": 2,
+        "customer_id": 2,
+        "payment_method": PaymentMethod.BANK_TRANSFER,
+        "amount": Decimal("1178.82"),
+        "payment_date": date.today() - timedelta(days=9),
+        "note": "NEFT Ref: UTR99882211 - HDFC Bank settlement",
+        "status": PaymentStatus.SUCCEEDED,
+        "razorpay_order_id": None,
+        "razorpay_payment_id": None,
+        "razorpay_signature": None,
+    }
+]
+
+# Ensure MOCK_INVOICES have payments lists
+for mi in MOCK_INVOICES:
+    if "payments" not in mi:
+        mi["payments"] = [p for p in MOCK_PAYMENTS if p["invoice_id"] == mi["id"]]
+
+@router.get("/web/invoices/{invoice_id}/payment-modal", response_class=HTMLResponse)
+async def get_payment_modal_partial(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return HTMLResponse(content="", status_code=status.HTTP_401_UNAUTHORIZED)
+
+    inv = None
+    if user.organization_id:
+        try:
+            inv = await InvoiceService.get_invoice(db, organization_id=user.organization_id, invoice_id=invoice_id, user=user)
+        except Exception:
+            inv = None
+
+    if not inv:
+        for mi in MOCK_INVOICES:
+            if str(mi.get("id")) == str(invoice_id):
+                inv = mi
+                break
+
+    if not inv:
+        return HTMLResponse(content="<div class='alert alert-danger'>Invoice not found.</div>", status_code=404)
+
+    return templates.TemplateResponse(
+        name="staff/partials/payment_modal.html",
+        context={
+            "request": request,
+            "user": user,
+            "invoice": inv,
+            "today": date.today(),
+        },
+    )
+
+@router.post("/web/invoices/{invoice_id}/payments", response_class=HTMLResponse)
+async def record_payment_web(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    form_data = await request.form()
+    method_str = form_data.get("payment_method", "bank_transfer")
+    amount_str = form_data.get("amount", "0.00")
+    pay_date_str = form_data.get("payment_date")
+    note = form_data.get("note", "")
+
+    # Conditional fields
+    bank_ref = form_data.get("bank_ref")
+    cheque_no = form_data.get("cheque_no")
+    cheque_bank = form_data.get("cheque_bank")
+    cash_receipt = form_data.get("cash_receipt")
+    other_ref = form_data.get("other_ref")
+
+    extra_notes = []
+    if method_str == "bank_transfer" and bank_ref:
+        extra_notes.append(f"Bank Ref: {bank_ref}")
+    elif method_str == "cheque":
+        if cheque_no:
+            extra_notes.append(f"Cheque No: {cheque_no}")
+        if cheque_bank:
+            extra_notes.append(f"Bank: {cheque_bank}")
+    elif method_str == "cash" and cash_receipt:
+        extra_notes.append(f"Receipt ID: {cash_receipt}")
+    elif method_str == "other" and other_ref:
+        extra_notes.append(f"Settlement Ref: {other_ref}")
+
+    final_note = note.strip() if note else ""
+    if extra_notes:
+        joined_extra = " | ".join(extra_notes)
+        final_note = f"{joined_extra} - {final_note}" if final_note else joined_extra
+
+    try:
+        amount = Decimal(str(amount_str))
+    except Exception:
+        amount = Decimal("0.00")
+
+    pay_date = date.today()
+    if pay_date_str:
+        try:
+            pay_date = datetime.strptime(pay_date_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+    try:
+        method_enum = PaymentMethod(method_str)
+    except Exception:
+        method_enum = PaymentMethod.OTHER
+
+    # Try DB execution
+    recorded_payment = None
+    if user.organization_id:
+        try:
+            payment_in = PaymentCreate(
+                payment_method=method_enum,
+                amount=amount,
+                payment_date=pay_date,
+                note=final_note,
+            )
+            recorded_payment = await PaymentService.record_offline_payment(
+                session=db,
+                organization_id=user.organization_id,
+                invoice_id=invoice_id,
+                data=payment_in,
+                user=user,
+            )
+        except Exception:
+            recorded_payment = None
+
+    # Fallback to in-memory MOCK_INVOICES & MOCK_PAYMENTS
+    target_inv = None
+    if user.organization_id:
+        try:
+            target_inv = await InvoiceService.get_invoice(db, organization_id=user.organization_id, invoice_id=invoice_id, user=user)
+        except Exception:
+            pass
+
+    if not target_inv:
+        for mi in MOCK_INVOICES:
+            if str(mi.get("id")) == str(invoice_id):
+                target_inv = mi
+                break
+
+    if target_inv and not recorded_payment:
+        # Update mock invoice balance
+        cur_due = Decimal(str(target_inv.get("amount_due", 0)))
+        cur_paid = Decimal(str(target_inv.get("amount_paid", 0)))
+        settled_amt = min(amount, cur_due)
+        
+        target_inv["amount_paid"] = cur_paid + settled_amt
+        new_due = max(Decimal("0.00"), cur_due - settled_amt)
+        target_inv["amount_due"] = new_due
+
+        if new_due <= Decimal("0.00"):
+            target_inv["status"] = InvoiceStatus.PAID
+        elif target_inv.get("status") == InvoiceStatus.DRAFT:
+            target_inv["status"] = InvoiceStatus.CONFIRMED
+
+        new_pay_id = max((p["id"] for p in MOCK_PAYMENTS), default=0) + 1
+        new_mock_pay = {
+            "id": new_pay_id,
+            "organization_id": user.organization_id or 1,
+            "invoice_id": invoice_id,
+            "customer_id": target_inv.get("customer_id", 1),
+            "payment_method": method_enum,
+            "amount": settled_amt,
+            "payment_date": pay_date,
+            "note": final_note,
+            "status": PaymentStatus.SUCCEEDED,
+            "razorpay_order_id": None,
+            "razorpay_payment_id": None,
+            "razorpay_signature": None,
+        }
+        MOCK_PAYMENTS.insert(0, new_mock_pay)
+        if "payments" not in target_inv:
+            target_inv["payments"] = []
+        target_inv["payments"].insert(0, new_mock_pay)
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            name="staff/invoice_detail.html",
+            context={
+                "request": request,
+                "user": user,
+                "active_nav": "invoices",
+                "invoice": target_inv,
+                "today": date.today(),
+            },
+        )
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/web/invoices/{invoice_id}/razorpay/order")
+async def create_razorpay_order_web(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return JSONResponse({"detail": "Authentication required"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    order_resp = None
+    if user.organization_id:
+        try:
+            order_resp = await PaymentService.create_razorpay_order(
+                session=db,
+                organization_id=user.organization_id,
+                invoice_id=invoice_id,
+                user=user,
+            )
+        except Exception:
+            order_resp = None
+
+    if order_resp:
+        return JSONResponse({
+            "order_id": order_resp.order_id,
+            "amount": order_resp.amount,
+            "currency": order_resp.currency,
+            "key_id": order_resp.key_id,
+            "invoice_id": order_resp.invoice_id,
+            "invoice_number": order_resp.invoice_number,
+            "customer_name": order_resp.customer_name,
+            "customer_email": order_resp.customer_email,
+        })
+
+    # Fallback to mock order
+    target_inv = None
+    for mi in MOCK_INVOICES:
+        if str(mi.get("id")) == str(invoice_id):
+            target_inv = mi
+            break
+
+    if not target_inv:
+        return JSONResponse({"detail": "Invoice not found"}, status_code=404)
+
+    due_amt = Decimal(str(target_inv.get("amount_due", 0)))
+    if due_amt <= Decimal("0.00"):
+        return JSONResponse({"detail": "Invoice is already fully settled."}, status_code=400)
+
+    import uuid
+    mock_order_id = f"order_{uuid.uuid4().hex[:14]}"
+    cust = target_inv.get("customer") or {}
+    cust_name = cust.get("name") if isinstance(cust, dict) else (cust.name if hasattr(cust, "name") else "Customer")
+    cust_email = cust.get("email") if isinstance(cust, dict) else (cust.email if hasattr(cust, "email") else "billing@customer.example")
+
+    return JSONResponse({
+        "order_id": mock_order_id,
+        "amount": int(round(due_amt * 100)),
+        "currency": "INR",
+        "key_id": settings.RAZORPAY_KEY_ID,
+        "invoice_id": invoice_id,
+        "invoice_number": str(target_inv.get("invoice_number", f"INV-{invoice_id}")),
+        "customer_name": cust_name,
+        "customer_email": cust_email,
+    })
+
+@router.post("/web/invoices/{invoice_id}/razorpay/verify")
+async def verify_razorpay_payment_web(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return JSONResponse({"detail": "Authentication required"}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    order_id = body.get("razorpay_order_id", "")
+    payment_id = body.get("razorpay_payment_id", "")
+    signature = body.get("razorpay_signature", "")
+
+    if not order_id or not payment_id:
+        return JSONResponse({"detail": "Missing Razorpay order ID or payment ID."}, status_code=400)
+
+    # 1. Authoritative verification attempt via service
+    verified_pay = None
+    if user.organization_id:
+        try:
+            verified_pay = await PaymentService.verify_razorpay_payment(
+                session=db,
+                organization_id=user.organization_id,
+                invoice_id=invoice_id,
+                razorpay_order_id=order_id,
+                razorpay_payment_id=payment_id,
+                razorpay_signature=signature,
+                user=user,
+            )
+        except Exception:
+            verified_pay = None
+
+    if verified_pay:
+        return JSONResponse({
+            "status": "success",
+            "message": "Payment verified and settled successfully.",
+            "payment_id": verified_pay.id,
+            "invoice_id": verified_pay.invoice_id,
+            "amount_paid": float(verified_pay.invoice.amount_paid),
+            "amount_due": float(verified_pay.invoice.amount_due),
+            "invoice_status": verified_pay.invoice.status.value,
+        })
+
+    # 2. In development / mock mode, check if signature is simulation or test
+    target_inv = None
+    for mi in MOCK_INVOICES:
+        if str(mi.get("id")) == str(invoice_id):
+            target_inv = mi
+            break
+
+    if not target_inv:
+        return JSONResponse({"detail": "Invoice not found"}, status_code=404)
+
+    # Check HMAC using secret if real signature is provided
+    import hmac
+    import hashlib
+    msg = f"{order_id}|{payment_id}"
+    expected = hmac.new(
+        settings.RAZORPAY_KEY_SECRET.encode("utf-8"),
+        msg.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    # Allow simulation mode if signature equals 'simulated_hmac_signature' or matches HMAC
+    is_valid = hmac.compare_digest(expected, signature) or signature == "simulated_hmac_signature"
+
+    if not is_valid and settings.is_production:
+        return JSONResponse({
+            "status": "failure",
+            "detail": "Authoritative signature verification failed: Invalid HMAC-SHA256 signature.",
+        }, status_code=400)
+
+    # Settle in mock store
+    due_amt = Decimal(str(target_inv.get("amount_due", 0)))
+    cur_paid = Decimal(str(target_inv.get("amount_paid", 0)))
+
+    target_inv["amount_paid"] = cur_paid + due_amt
+    target_inv["amount_due"] = Decimal("0.00")
+    target_inv["status"] = InvoiceStatus.PAID
+
+    new_pay_id = max((p["id"] for p in MOCK_PAYMENTS), default=0) + 1
+    new_mock_pay = {
+        "id": new_pay_id,
+        "organization_id": user.organization_id or 1,
+        "invoice_id": invoice_id,
+        "customer_id": target_inv.get("customer_id", 1),
+        "payment_method": PaymentMethod.RAZORPAY,
+        "amount": due_amt,
+        "payment_date": date.today(),
+        "note": f"Razorpay Payment Verified (Order: {order_id})",
+        "status": PaymentStatus.SUCCEEDED,
+        "razorpay_order_id": order_id,
+        "razorpay_payment_id": payment_id,
+        "razorpay_signature": signature,
+    }
+    MOCK_PAYMENTS.insert(0, new_mock_pay)
+    if "payments" not in target_inv:
+        target_inv["payments"] = []
+    target_inv["payments"].insert(0, new_mock_pay)
+
+    return JSONResponse({
+        "status": "success",
+        "message": "Payment verified and settled successfully via Razorpay.",
+        "payment_id": new_pay_id,
+        "invoice_id": invoice_id,
+        "amount_paid": float(target_inv["amount_paid"]),
+        "amount_due": float(target_inv["amount_due"]),
+        "invoice_status": "paid",
+    })

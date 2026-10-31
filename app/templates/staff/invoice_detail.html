@@ -14,6 +14,9 @@
 
 {% block content %}
 <div id="invoice-detail-wrapper">
+  <!-- Dynamic Payment Feedback Container -->
+  <div id="payment-feedback-target"></div>
+
   {% set st = invoice.status.value if invoice.status.value is defined else invoice.status %}
   {% set is_overdue = (st != 'paid' and st != 'cancelled' and invoice.due_date and today and invoice.due_date < today) %}
 
@@ -267,44 +270,28 @@
     </div>
 
   </div>
-</div>
 
-<!-- F8 Record Payment Placeholder Modal -->
-<div class="modal-backdrop" id="payment-placeholder-modal" style="display: none;" onclick="if(event.target === this) closePaymentModal();">
-  <div class="modal-card" style="max-width: 480px;">
-    <div class="modal-header">
-      <div>
-        <h2 class="modal-title">Record Payment</h2>
-        <p class="modal-subtitle">Invoice {{ invoice.invoice_number }} &bull; Balance Due: ₹{{ "{:,.2f}".format(invoice.amount_due or 0.0) }}</p>
-      </div>
-      <button type="button" class="modal-close-btn" onclick="closePaymentModal();">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div style="background: var(--pastel-sky); border-radius: var(--radius-sm); padding: 12px; margin-bottom: var(--space-4); font-size: 0.85rem; color: #0284C7;">
-        <strong>Payment Gateway Integration (F8 Milestone):</strong><br>
-        Direct payments and manual receipts are handled in Milestone F8.
-      </div>
-      <p style="font-size: 0.85rem; color: var(--text-secondary);">
-        Would you like to simulate marking this invoice as paid in this demo?
-      </p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-outline" onclick="closePaymentModal();">Cancel</button>
-      <button type="button" class="btn btn-teal" onclick="alert('Payment receipt registered! Invoice balance updated.'); closePaymentModal();">
-        Record Payment (F8)
-      </button>
-    </div>
+  <!-- Online Razorpay Checkout Section (Hidden on Print) -->
+  <div class="no-print">
+    {% include "staff/partials/razorpay_checkout.html" %}
   </div>
+
+  <!-- Reconciled Payment History Ledger (Hidden on Print) -->
+  <div class="no-print">
+    {% include "staff/partials/payment_history.html" %}
+  </div>
+
 </div>
 
-<script>
-function openPaymentModal() {
-  document.getElementById('payment-placeholder-modal').style.display = 'flex';
-}
-function closePaymentModal() {
-  document.getElementById('payment-placeholder-modal').style.display = 'none';
-}
+<!-- Record Offline Payment Modal Container -->
+<div id="modal-container">
+  {% include "staff/partials/payment_modal.html" %}
+</div>
 
+<!-- Official Razorpay Checkout SDK & Subly Payment Controller -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="/static/js/payment.js"></script>
+<script>
 // Auto-trigger print if ?print=true is present
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);

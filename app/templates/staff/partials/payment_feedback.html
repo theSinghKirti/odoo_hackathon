@@ -1,0 +1,83 @@
+<div id="payment-feedback-container" style="margin-bottom: var(--space-4);">
+  {% if status == 'success' %}
+    <!-- Success Feedback State -->
+    <div style="background-color: var(--pastel-mint); border: 1px solid #A7F3D0; border-radius: var(--radius-card); padding: var(--space-5); display: flex; align-items: flex-start; gap: 14px;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background-color: #059669; color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div style="flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #065F46; margin: 0 0 2px 0;">Payment Successful!</h3>
+          <button type="button" onclick="this.closest('#payment-feedback-container').remove();" style="background: none; border: none; color: #047857; font-size: 1.2rem; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #047857; margin: 0 0 8px 0;">
+          {{ message or 'Transaction verified and settled. The ledger and customer account have been updated.' }}
+        </p>
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; font-size: 0.8rem; color: #065F46; background: rgba(255, 255, 255, 0.6); padding: 8px 12px; border-radius: 6px;">
+          <div>Ref: <strong>{{ payment_reference or payment_id or 'REC-SUCCESS' }}</strong></div>
+          {% if amount_paid %}
+            <div>Amount Paid: <strong>₹{{ "{:,.2f}".format(amount_paid) }}</strong></div>
+          {% endif %}
+          {% if remaining_balance is defined and remaining_balance is not none %}
+            <div>Remaining Balance: <strong>₹{{ "{:,.2f}".format(remaining_balance) }}</strong></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  {% elif status == 'failure' or status == 'error' %}
+    <!-- Failure Feedback State -->
+    <div style="background-color: var(--pastel-pink); border: 1px solid #FECACA; border-radius: var(--radius-card); padding: var(--space-5); display: flex; align-items: flex-start; gap: 14px;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background-color: var(--danger); color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </div>
+      <div style="flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #991B1B; margin: 0 0 2px 0;">Payment Could Not Be Completed</h3>
+          <button type="button" onclick="this.closest('#payment-feedback-container').remove();" style="background: none; border: none; color: #991B1B; font-size: 1.2rem; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #B91C1C; margin: 0 0 10px 0;">
+          {{ error or message or 'The payment could not be authorized or verification failed. No funds were debited.' }}
+        </p>
+        <div>
+          <button 
+            type="button" 
+            class="btn btn-outline" 
+            onclick="initiateRazorpayPayment({{ invoice_id }});"
+            style="color: var(--danger); border-color: #F87171; padding: 4px 12px; font-size: 0.8rem; background: white;"
+          >
+            Retry Payment
+          </button>
+        </div>
+      </div>
+    </div>
+
+  {% elif status == 'pending' %}
+    <!-- Pending / In-Verification State -->
+    <div style="background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: var(--radius-card); padding: var(--space-5); display: flex; align-items: flex-start; gap: 14px;">
+      <div style="width: 36px; height: 36px; border-radius: 50%; background-color: #D97706; color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 14 14"/>
+        </svg>
+      </div>
+      <div style="flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #92400E; margin: 0 0 2px 0;">Payment Processing</h3>
+          <button type="button" onclick="this.closest('#payment-feedback-container').remove();" style="background: none; border: none; color: #92400E; font-size: 1.2rem; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #B45309; margin: 0 0 6px 0;">
+          {{ message or 'Awaiting bank confirmation or asynchronous webhook settlement. Invoice balance will reflect once verified.' }}
+        </p>
+        {% if order_id %}
+          <div style="font-size: 0.8rem; color: #92400E;">Order Reference: <code>{{ order_id }}</code></div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>

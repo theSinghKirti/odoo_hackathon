@@ -1,0 +1,116 @@
+<div class="card" id="payment-history-container" style="padding: 0; overflow: hidden; margin-top: var(--space-6);">
+  <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); background-color: #FAFCFE; display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 28px; height: 28px; border-radius: 6px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 14 14"/>
+        </svg>
+      </div>
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin: 0;">Payment Transaction History</h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">Reconciled payment receipts recorded against this invoice</p>
+      </div>
+    </div>
+    
+    <span class="badge badge-admin">{{ invoice.payments|length if invoice.payments else 0 }} Receipts</span>
+  </div>
+
+  <div class="table-container" style="border: none;">
+    <table class="table" style="margin-bottom: 0;">
+      <thead>
+        <tr>
+          <th>Payment Ref #</th>
+          <th>Payment Method</th>
+          <th>Payment Date</th>
+          <th style="text-align: right;">Amount (₹)</th>
+          <th>Status</th>
+          <th>Transaction Reference / Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if invoice.payments and invoice.payments|length > 0 %}
+          {% for p in invoice.payments %}
+          {% set method_str = p.payment_method.value if p.payment_method.value is defined else p.payment_method %}
+          {% set status_str = p.status.value if p.status.value is defined else p.status %}
+          <tr>
+            <td>
+              <div style="font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 6px;">
+                <span>PAY-{{ "%04d"|format(p.id) }}</span>
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                TxID #{{ p.id }}
+              </div>
+            </td>
+            <td>
+              {% if method_str == 'razorpay' %}
+                <span class="badge" style="background-color: #E0E7FF; color: #4338CA; border: 1px solid #C7D2FE;">
+                  Razorpay Online
+                </span>
+              {% elif method_str == 'bank_transfer' %}
+                <span class="badge" style="background-color: var(--pastel-sky); color: #0369A1; border: 1px solid #BAE6FD;">
+                  Bank Transfer
+                </span>
+              {% elif method_str == 'cheque' %}
+                <span class="badge" style="background-color: var(--pastel-lavender); color: #6D28D9; border: 1px solid #DDD6FE;">
+                  Cheque
+                </span>
+              {% elif method_str == 'cash' %}
+                <span class="badge" style="background-color: var(--pastel-mint); color: #047857; border: 1px solid #A7F3D0;">
+                  Cash
+                </span>
+              {% else %}
+                <span class="badge badge-admin">
+                  {{ method_str|upper }}
+                </span>
+              {% endif %}
+            </td>
+            <td style="font-size: 0.85rem; color: var(--text-secondary);">
+              {{ p.payment_date.strftime('%d %b %Y') if p.payment_date and p.payment_date.strftime is defined else p.payment_date }}
+            </td>
+            <td style="text-align: right; font-weight: 700; color: #059669; font-size: 0.95rem;">
+              ₹{{ "{:,.2f}".format(p.amount or 0.0) }}
+            </td>
+            <td>
+              {% if status_str == 'succeeded' %}
+                <span class="badge badge-active" style="font-size: 0.75rem;">SUCCEEDED</span>
+              {% elif status_str == 'pending' %}
+                <span class="badge badge-paused" style="font-size: 0.75rem;">PENDING</span>
+              {% elif status_str == 'failed' %}
+                <span class="badge badge-expired" style="font-size: 0.75rem;">FAILED</span>
+              {% elif status_str == 'refunded' %}
+                <span class="badge badge-closed" style="font-size: 0.75rem;">REFUNDED</span>
+              {% else %}
+                <span class="badge badge-admin" style="font-size: 0.75rem;">{{ status_str|upper }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size: 0.825rem; color: var(--text-secondary); max-width: 260px;">
+              {% if p.razorpay_payment_id %}
+                <div><strong>Razorpay ID:</strong> <code>{{ p.razorpay_payment_id }}</code></div>
+              {% endif %}
+              <div>{{ p.note or 'Ledger settlement confirmed.' }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: var(--space-8);">
+              <div style="max-width: 320px; margin: 0 auto;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
+                  </svg>
+                </div>
+                <div style="font-weight: 600; color: var(--navy); font-size: 0.9rem;">No Payments Recorded</div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0;">
+                  This invoice has not received any offline or online payments yet.
+                </p>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
