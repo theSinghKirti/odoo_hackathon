@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     products,
     quotations,
     quotation_templates,
+    subscriptions,
     taxes,
 )
 
@@ -22,4 +23,5 @@ api_router.include_router(taxes.router)
 api_router.include_router(discounts.router)
 api_router.include_router(quotation_templates.router)
 api_router.include_router(quotations.router)
+api_router.include_router(subscriptions.router)
 api_router.include_router(health.router)

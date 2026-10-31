@@ -83,10 +83,10 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 - [x] Build `QuotationService` to calculate expiry date and quote totals with taxes and discounts.
 - [x] Build **Atomic Conversion Service**: converts confirmed quote into a live `Subscription` in one transaction.
 
-#### Milestone B6: Subscription State Machine
-- [ ] Create `Subscription` and `SubscriptionLine` models (`SUB-YYYY-XXXX`).
-- [ ] Implement state machine transitions: `Draft → Quotation → Confirmed → Active → Closed`.
-- [ ] Implement `pause_subscription()`, `resume_subscription()`, and `close_subscription()` services enforcing plan policies.
+#### Milestone B6: Subscription State Machine *(Completed)*
+- [x] Create `Subscription` and `SubscriptionLine` models (`SUB-YYYY-XXXX`).
+- [x] Implement state machine transitions: `Draft → Quotation → Confirmed → Active → Closed`.
+- [x] Implement `pause_subscription()`, `resume_subscription()`, and `close_subscription()` services enforcing plan policies.
 
 #### Milestone B7: Automated Billing Day & Invoicing Worker
 - [ ] Create `Invoice` and `InvoiceLine` models (`INV-YYYY-XXXX`, `Draft → Confirmed → Paid`).
