@@ -6,6 +6,8 @@ from app.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.customer import Customer
+    from app.models.product import Product
+    from app.models.plan import SubscriptionPlan
 
 
 class Organization(Base, TimestampMixin):
@@ -28,6 +30,16 @@ class Organization(Base, TimestampMixin):
     )
     customers: Mapped[List["Customer"]] = relationship(
         "Customer",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    products: Mapped[List["Product"]] = relationship(
+        "Product",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    plans: Mapped[List["SubscriptionPlan"]] = relationship(
+        "SubscriptionPlan",
         back_populates="organization",
         cascade="all, delete-orphan",
     )

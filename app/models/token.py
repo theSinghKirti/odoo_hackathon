@@ -37,8 +37,8 @@ class PasswordResetToken(Base):
     def is_expired(self) -> bool:
         now = datetime.now(timezone.utc)
         if self.expires_at.tzinfo is None:
-            # Handle naive datetime comparisons gracefully
-            return datetime.utcnow() > self.expires_at
+            # Handle naive datetime comparisons gracefully by treating naive as UTC
+            return now > self.expires_at.replace(tzinfo=timezone.utc)
         return now > self.expires_at
 
     def __repr__(self) -> str:

@@ -50,26 +50,26 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 
 ### Track A: Developer 1 — Backend Engineering
 
-#### Milestone B1: Foundation, Multi-Tenancy & Authentication Core
-- [ ] Initialize Python virtual environment with `uv` or `pip` (`pyproject.toml`).
-- [ ] Configure PostgreSQL async engine with SQLAlchemy 2.0 and Alembic.
-- [ ] Create database models: `Organization`, `User` (Role ENUM: `admin`, `staff`, `customer`), `Customer`.
-- [ ] Implement password security validator (> 8 chars, uppercase, lowercase, special char).
-- [ ] Implement Argon2id password hashing and JWT cookie issuance/validation.
-- [ ] Implement Password Reset token generation and verification services.
-- [ ] Implement multi-tenant dependency `get_current_tenant` to enforce `organization_id` on all queries.
-- [ ] Setup Docker Compose for PostgreSQL 16 and Redis 7.
+#### Milestone B1: Foundation, Multi-Tenancy & Authentication Core *(Completed)*
+- [x] Initialize Python virtual environment with `uv` or `pip` (`pyproject.toml`).
+- [x] Configure PostgreSQL async engine with SQLAlchemy 2.0 and Alembic.
+- [x] Create database models: `Organization`, `User` (Role ENUM: `admin`, `staff`, `customer`), `Customer`.
+- [x] Implement password security validator (> 8 chars, uppercase, lowercase, special char).
+- [x] Implement Argon2id password hashing and JWT cookie issuance/validation.
+- [x] Implement Password Reset token generation and verification services.
+- [x] Implement multi-tenant dependency `get_current_tenant` to enforce `organization_id` on all queries.
+- [x] Setup Docker Compose for PostgreSQL 16 and Redis 7.
 
-#### Milestone B2: Product Catalog & Variant Surcharge Engine
-- [ ] Create `Product` model (Software, Service, Add-on, Physical; sales price, cost price, notes).
-- [ ] Create `ProductVariant` model (attribute name, value, price surcharge, SKU).
-- [ ] Build `ProductService` with dynamic surcharge calculation (e.g., Odoo Brand adds +560).
-- [ ] Build repository queries for catalog listing, variant retrieval, and add-on toggling.
+#### Milestone B2: Product Catalog & Variant Surcharge Engine *(Completed)*
+- [x] Create `Product` model (Software, Service, Add-on, Physical; sales price, cost price, notes).
+- [x] Create `ProductVariant` model (attribute name, value, price surcharge, SKU).
+- [x] Build `ProductService` with dynamic surcharge calculation (e.g., Odoo Brand adds +560).
+- [x] Build repository queries for catalog listing, variant retrieval, and add-on toggling.
 
-#### Milestone B3: Plans & Lifecycle Policies Backend
-- [ ] Create `SubscriptionPlan` model with intervals (`daily`, `weekly`, `monthly`, `yearly`).
-- [ ] Store policy toggles: `auto_close_on_expiry`, `allow_early_close`, `allow_pause`, `allow_renewal`.
-- [ ] Build `PlanService` validating minimum quantity and date availability window (`available_from`, `available_until`).
+#### Milestone B3: Plans & Lifecycle Policies Backend *(Completed)*
+- [x] Create `SubscriptionPlan` model with intervals (`daily`, `weekly`, `monthly`, `yearly`).
+- [x] Store policy toggles: `auto_close_on_expiry`, `allow_early_close`, `allow_pause`, `allow_renewal`.
+- [x] Build `PlanService` validating minimum quantity and date availability window (`available_from`, `available_until`).
 
 #### Milestone B4: Tax & Discount Calculation Engines
 - [ ] Create `TaxRule` model (name, rate percentage, active status).
@@ -119,16 +119,16 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 
 ### Track B: Developer 2 — Frontend & UI/UX Engineering
 
-#### Milestone F1: Core Design System & Base Templates
-- [ ] Create `app/static/css/main.css` tailored design system:
+#### Milestone F1: Core Design System & Base Templates *(Completed)*
+- [x] Create `static/css/style.css` tailored design system:
   - Color palette: Modern dark/light accents, professional slate, crisp borders, status badges (Active=green, Paused=amber, Closed=slate, Overdue=red).
-  - Typography: Google Font Inter, clean hierarchy, legible data tables.
-  - Micro-animations: Smooth hover states, modal fade-ins, loading spinners for HTMX requests (`.htmx-indicator`).
-- [ ] Build `app/templates/base.html` shell with responsive sidebar navigation, top bar, user dropdown, and toast notification container.
-- [ ] Include HTMX 1.9+ library and configure global headers (`X-Requested-With`, CSRF/Cookie handling).
-- [ ] Build Authentication screens:
+  - Typography: Clean hierarchy, legible data tables.
+  - Micro-animations: Smooth hover states, modal fade-ins, loading spinners for HTMX requests.
+- [x] Build `app/templates/base.html` shell with responsive navigation, top bar, user status, and flash message container.
+- [x] Include HTMX 1.9+ library and configure global headers.
+- [x] Build Authentication screens:
   - Login page (`login.html`) with smooth focus states and error banners.
-  - Registration page (`register.html`) with real-time password strength / requirement indicator (>8 chars, upper, lower, special).
+  - Registration page (`register.html`) with password policy indicators (>8 chars, upper, lower, special).
   - Forgot Password & Reset Password pages.
 
 #### Milestone F2: Product Catalog & Variant Manager Views
