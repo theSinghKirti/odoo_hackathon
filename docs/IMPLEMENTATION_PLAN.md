@@ -71,17 +71,17 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 - [x] Store policy toggles: `auto_close_on_expiry`, `allow_early_close`, `allow_pause`, `allow_renewal`.
 - [x] Build `PlanService` validating minimum quantity and date availability window (`available_from`, `available_until`).
 
-#### Milestone B4: Tax & Discount Calculation Engines
-- [ ] Create `TaxRule` model (name, rate percentage, active status).
-- [ ] Create `DiscountRule` model (fixed/%, min spend/qty, dates, max uses, product/subscription scope).
-- [ ] Build `TaxEngine` to compute line-level and total taxes.
-- [ ] Build `DiscountEngine` to check eligibility, apply discounts, and atomically increment `times_used`.
+#### Milestone B4: Tax & Discount Calculation Engines *(Completed)*
+- [x] Create `TaxRule` model (name, rate percentage, active status).
+- [x] Create `DiscountRule` model (fixed/%, min spend/qty, dates, max uses, product/subscription scope).
+- [x] Build `TaxEngine` to compute line-level and total taxes.
+- [x] Build `DiscountEngine` to check eligibility, apply discounts, and atomically increment `times_used`.
 
-#### Milestone B5: Quotation & Atomic Conversion Service
-- [ ] Create `QuotationTemplate` and `QuotationTemplateLine` models (validity days, lines).
-- [ ] Create `Quotation` and `QuotationLine` models (`QUO-YYYY-XXXX` numbering, customer, expiry date).
-- [ ] Build `QuotationService` to calculate expiry date and quote totals with taxes and discounts.
-- [ ] Build **Atomic Conversion Service**: converts confirmed quote into a live `Subscription` in one transaction.
+#### Milestone B5: Quotation & Atomic Conversion Service *(Completed)*
+- [x] Create `QuotationTemplate` and `QuotationTemplateLine` models (validity days, lines).
+- [x] Create `Quotation` and `QuotationLine` models (`QUO-YYYY-XXXX` numbering, customer, expiry date).
+- [x] Build `QuotationService` to calculate expiry date and quote totals with taxes and discounts.
+- [x] Build **Atomic Conversion Service**: converts confirmed quote into a live `Subscription` in one transaction.
 
 #### Milestone B6: Subscription State Machine
 - [ ] Create `Subscription` and `SubscriptionLine` models (`SUB-YYYY-XXXX`).

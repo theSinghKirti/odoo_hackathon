@@ -8,6 +8,11 @@ if TYPE_CHECKING:
     from app.models.customer import Customer
     from app.models.product import Product
     from app.models.plan import SubscriptionPlan
+    from app.models.tax import TaxRule
+    from app.models.discount import DiscountRule
+    from app.models.quotation_template import QuotationTemplate
+    from app.models.quotation import Quotation
+    from app.models.subscription import Subscription
 
 
 class Organization(Base, TimestampMixin):
@@ -40,6 +45,31 @@ class Organization(Base, TimestampMixin):
     )
     plans: Mapped[List["SubscriptionPlan"]] = relationship(
         "SubscriptionPlan",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    tax_rules: Mapped[List["TaxRule"]] = relationship(
+        "TaxRule",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    discount_rules: Mapped[List["DiscountRule"]] = relationship(
+        "DiscountRule",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    quotation_templates: Mapped[List["QuotationTemplate"]] = relationship(
+        "QuotationTemplate",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    quotations: Mapped[List["Quotation"]] = relationship(
+        "Quotation",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    subscriptions: Mapped[List["Subscription"]] = relationship(
+        "Subscription",
         back_populates="organization",
         cascade="all, delete-orphan",
     )
