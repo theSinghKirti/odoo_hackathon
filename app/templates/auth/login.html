@@ -96,12 +96,12 @@
 
       <div class="auth-header">
         <h1 class="auth-title">Welcome Back</h1>
-        <p class="auth-subtitle">Choose your role or enter your credentials below</p>
+        <p class="auth-subtitle">Sign in to your account with your email and password</p>
       </div>
 
       <!-- ROLE SELECTOR TABS -->
       <div style="margin-bottom: var(--space-4);">
-        <label class="form-label">Sign In As:</label>
+        <label class="form-label">Workspace:</label>
         <div class="role-tabs-grid">
           <button 
             type="button" 
@@ -131,14 +131,9 @@
       </div>
 
       <!-- ROLE INFO CALLOUT BANNER -->
-      <div id="role-banner" style="background-color: var(--pastel-sky); border: 2px solid #000000; box-shadow: 2px 2px 0px 0px #000000; border-radius: var(--radius-base); padding: 10px 14px; margin-bottom: var(--space-4); display: flex; align-items: center; justify-content: space-between;">
-        <div>
-          <div id="role-title" style="font-weight: 900; font-size: 0.85rem; color: #000000;">👑 System Administrator</div>
-          <div id="role-desc" style="font-size: 0.775rem; color: var(--text-secondary); font-weight: 600;">Full business control, revenue analytics, users &amp; system setup</div>
-        </div>
-        <button type="button" class="btn btn-xs btn-yellow" onclick="fillSelectedRole()" title="Fill pre-seeded credentials">
-          Pre-fill Demo
-        </button>
+      <div id="role-banner" style="background-color: var(--pastel-sky); border: 2px solid #000000; box-shadow: 2px 2px 0px 0px #000000; border-radius: var(--radius-base); padding: 10px 14px; margin-bottom: var(--space-4);">
+        <div id="role-title" style="font-weight: 900; font-size: 0.85rem; color: #000000;">👑 System Administrator</div>
+        <div id="role-desc" style="font-size: 0.775rem; color: var(--text-secondary); font-weight: 600;">Full business control, revenue analytics, users &amp; system setup</div>
       </div>
 
       <!-- Error / Flash Alerts -->
@@ -174,10 +169,10 @@
             id="email" 
             name="email" 
             class="form-control" 
-            placeholder="name@brightloop.io" 
+            placeholder="admin@brightloop.io" 
             required 
             autocomplete="email"
-            value="{% if selected_role == 'staff' %}marcus.staff@brightloop.io{% elif selected_role == 'customer' %}billing@acmecloud.io{% else %}admin@brightloop.io{% endif %}"
+            value="{{ email or '' }}"
           >
         </div>
 
@@ -196,7 +191,7 @@
               placeholder="••••••••" 
               required 
               autocomplete="current-password"
-              value="{% if selected_role == 'staff' %}Staff@Brightloop123{% elif selected_role == 'customer' %}Customer@1234{% else %}Admin@Brightloop123{% endif %}"
+              value=""
             >
           </div>
         </div>
@@ -207,26 +202,8 @@
         </button>
       </form>
 
-      <!-- Quick 1-Click Role Logins -->
-      <div style="margin-top: var(--space-5); padding-top: var(--space-4); border-top: 2px solid #000000;">
-        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #000000; letter-spacing: 0.04em; margin-bottom: 8px;">
-          Quick 1-Click Role Switcher:
-        </div>
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-xs" style="background-color: var(--neo-lavender);" onclick="quickLogin('admin')">
-            👑 Admin
-          </button>
-          <button type="button" class="btn btn-xs" style="background-color: var(--neo-cyan);" onclick="quickLogin('staff')">
-            💼 Staff
-          </button>
-          <button type="button" class="btn btn-xs" style="background-color: var(--neo-mint);" onclick="quickLogin('customer')">
-            👤 Customer
-          </button>
-        </div>
-      </div>
-
       <!-- Terms & Privacy -->
-      <div style="margin-top: var(--space-4); text-align: center; font-size: 0.785rem; color: var(--text-muted); font-weight: 600;">
+      <div style="margin-top: var(--space-5); text-align: center; font-size: 0.785rem; color: var(--text-muted); font-weight: 600;">
         By signing in, you agree to Subly's 
         <a href="#" style="color: #000000;">Terms</a> and 
         <a href="#" style="color: #000000;">Privacy Policy</a>.
@@ -241,24 +218,21 @@ const ROLE_DATA = {
   admin: {
     title: "👑 System Administrator",
     desc: "Full business control, revenue analytics, users & system setup",
-    email: "admin@brightloop.io",
-    pass: "Admin@Brightloop123",
+    placeholder: "admin@brightloop.io",
     bg: "var(--pastel-lavender)",
     btnText: "Sign In as Admin →"
   },
   staff: {
     title: "💼 Operations Staff",
     desc: "Customer management, quotations, subscription lifecycle & invoices",
-    email: "marcus.staff@brightloop.io",
-    pass: "Staff@Brightloop123",
+    placeholder: "marcus.staff@brightloop.io",
     bg: "var(--pastel-sky)",
     btnText: "Sign In as Staff →"
   },
   customer: {
     title: "👤 Customer Portal",
     desc: "Self-service subscriptions, quotes review & instant online payment",
-    email: "billing@acmecloud.io",
-    pass: "Customer@1234",
+    placeholder: "billing@acmecloud.io",
     bg: "var(--pastel-mint)",
     btnText: "Sign In to Customer Portal →"
   }
@@ -274,31 +248,16 @@ function selectRole(role) {
   const activeBtn = document.getElementById(`tab-${role}`);
   if (activeBtn) activeBtn.classList.add('active');
 
-  // Update banner
+  // Update banner & placeholder
   const data = ROLE_DATA[role];
   if (data) {
     document.getElementById('role-title').textContent = data.title;
     document.getElementById('role-desc').textContent = data.desc;
     document.getElementById('role-banner').style.backgroundColor = data.bg;
     document.getElementById('submit-btn').textContent = data.btnText;
-    
-    // Auto-fill inputs with the role's demo credentials
-    document.getElementById('email').value = data.email;
-    document.getElementById('password').value = data.pass;
+    const emailInput = document.getElementById('email');
+    emailInput.placeholder = data.placeholder;
   }
-}
-
-function fillSelectedRole() {
-  const data = ROLE_DATA[currentRole];
-  if (data) {
-    document.getElementById('email').value = data.email;
-    document.getElementById('password').value = data.pass;
-  }
-}
-
-function quickLogin(role) {
-  selectRole(role);
-  document.getElementById('login-form').submit();
 }
 
 // Initialize on page load
