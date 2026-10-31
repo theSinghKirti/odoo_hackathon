@@ -9,6 +9,7 @@ from app.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.customer import Customer
     from app.models.discount import DiscountRule
+    from app.models.invoice import Invoice
     from app.models.organization import Organization
     from app.models.plan import SubscriptionPlan
     from app.models.product import Product, ProductVariant
@@ -109,6 +110,12 @@ class Subscription(Base, TimestampMixin):
         back_populates="subscription",
         cascade="all, delete-orphan",
         order_by="SubscriptionLine.id",
+        lazy="selectin",
+    )
+    invoices: Mapped[List["Invoice"]] = relationship(
+        "Invoice",
+        back_populates="subscription",
+        order_by="Invoice.id",
         lazy="selectin",
     )
 

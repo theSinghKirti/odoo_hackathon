@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     customers,
     discounts,
     health,
+    invoices,
     plans,
     products,
     quotations,
@@ -24,4 +25,5 @@ api_router.include_router(discounts.router)
 api_router.include_router(quotation_templates.router)
 api_router.include_router(quotations.router)
 api_router.include_router(subscriptions.router)
+api_router.include_router(invoices.router)
 api_router.include_router(health.router)

@@ -88,13 +88,13 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
 - [x] Implement state machine transitions: `Draft → Quotation → Confirmed → Active → Closed`.
 - [x] Implement `pause_subscription()`, `resume_subscription()`, and `close_subscription()` services enforcing plan policies.
 
-#### Milestone B7: Automated Billing Day & Invoicing Worker
-- [ ] Create `Invoice` and `InvoiceLine` models (`INV-YYYY-XXXX`, `Draft → Confirmed → Paid`).
-- [ ] Configure Celery with Redis broker for background scheduling.
-- [ ] Implement idempotent Billing Sweep task using `SELECT ... FOR UPDATE SKIP LOCKED`:
+#### Milestone B7: Automated Billing Day & Invoicing Worker *(Completed)*
+- [x] Create `Invoice` and `InvoiceLine` models (`INV-YYYY-XXXX`, `Draft → Confirmed → Paid`).
+- [x] Configure Celery with Redis broker for background scheduling.
+- [x] Implement idempotent Billing Sweep task using `SELECT ... FOR UPDATE SKIP LOCKED`:
   - Finds active subscriptions where `next_billing_date <= today`.
   - Generates invoice, computes taxes/discounts, advances `next_billing_date`, and records `last_billed_date`.
-- [ ] Implement invoice actions: `confirm_invoice()`, `cancel_invoice()`.
+- [x] Implement invoice actions: `confirm_invoice()`, `cancel_invoice()`.
 
 #### Milestone B8: Multi-Method Payment Ledger & Razorpay Integration
 - [ ] Create `Payment` model (method, amount, payment date, note, status, Razorpay IDs).

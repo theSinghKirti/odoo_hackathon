@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.quotation_template import QuotationTemplate
     from app.models.quotation import Quotation
     from app.models.subscription import Subscription
+    from app.models.invoice import Invoice
 
 
 class Organization(Base, TimestampMixin):
@@ -70,6 +71,11 @@ class Organization(Base, TimestampMixin):
     )
     subscriptions: Mapped[List["Subscription"]] = relationship(
         "Subscription",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    invoices: Mapped[List["Invoice"]] = relationship(
+        "Invoice",
         back_populates="organization",
         cascade="all, delete-orphan",
     )
