@@ -357,3 +357,21 @@ Base Path: `/api/v1/org/{org_id}/analytics`
   }
   ```
 - **Performance Guarantee:** Executes in under 2 seconds.
+
+---
+
+## 12. HTMX Hypermedia Partial Contracts (`app/web/`)
+
+These routes represent the integration handshake between Developer 1 (Backend route logic) and Developer 2 (Frontend Jinja2 partials):
+
+| Web Endpoint | Trigger Element | HTMX Attributes | Target ID | Swapped Partial / Content |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET /web/products/search` | Search input | `hx-get="/web/products/search" hx-trigger="keyup changed delay:300ms"` | `#product-table-body` | Replaces `<tbody>` with filtered `partials/product_rows.html` |
+| `POST /web/products` | Create product form | `hx-post="/web/products" hx-target="#product-table-body" hx-swap="afterbegin"` | `#product-table-body` | Prepend new product row and dispatches toast event |
+| `POST /web/products/{id}/variants` | Add variant modal | `hx-post="..." hx-target="#variant-list"` | `#variant-list` | Appends new variant row with surcharge badge |
+| `POST /web/quotes/{id}/convert` | "Convert to Sub" btn | `hx-post="..." hx-target="#quote-status-card" hx-swap="outerHTML"` | `#quote-status-card` | Swaps quote status card and reveals link to new subscription |
+| `POST /web/subs/{id}/pause` | Pause button | `hx-post="..." hx-target="#sub-status-badge" hx-swap="outerHTML"` | `#sub-status-badge` | Returns `<span class="badge badge-paused">Paused</span>` |
+| `POST /web/subs/{id}/resume` | Resume button | `hx-post="..." hx-target="#sub-status-badge" hx-swap="outerHTML"` | `#sub-status-badge` | Returns `<span class="badge badge-active">Active</span>` |
+| `POST /web/invoices/{id}/confirm`| Confirm invoice btn | `hx-post="..." hx-target="#invoice-header-actions"` | `#invoice-header-actions`| Swaps action buttons (disables edit, enables print & pay) |
+| `POST /web/invoices/{id}/payments`| Payment modal submit| `hx-post="..." hx-target="#invoice-payment-summary"`| `#invoice-payment-summary`| Swaps balance due, adds payment line, updates status badge |
+| `GET /web/finance/summary` | Date range selector | `hx-get="..." hx-target="#finance-stat-cards" hx-swap="innerHTML"` | `#finance-stat-cards` | Fast swap of the 4 financial metric summary cards |

@@ -105,8 +105,12 @@ odoo_hackathon/
 
 ## 5. Development Guidelines for AI Agents
 
-1. **Check Documentation First:** Refer to `PRD.md`, `BUSINESS_RULES.md`, and `DATABASE_SCHEMA.md` as authoritative domain specifications.
-2. **Never Invent Rules:** If a requirement is ambiguous, check the problem statement or ask before making assumptions.
-3. **Preserve Multi-Tenancy:** Every repository query must enforce `organization_id` isolation.
-4. **Ensure Sub-2-Second Performance:** Use database indexes, limit/offset pagination, and server-side aggregation for reporting.
-5. **Write Clean, Idiomatic Code:** Follow PEP 8, use explicit type annotations, and maintain test coverage for all domain logic.
+1. **Identify the Developer Track:**
+   - **Backend Track (Dev 1):** Focus on `app/models/`, `app/repositories/`, `app/services/`, `app/api/`, `app/workers/`, `migrations/`, and backend Pytest test cases.
+   - **Frontend Track (Dev 2):** Focus on `app/templates/`, `app/static/`, Jinja2 partials, HTMX attributes, Vanilla CSS styles, and client-side interactions.
+   - **Integration Boundary:** Coordinate in `app/web/` ensuring HTMX target IDs, swap modes, and trigger headers match between template and route.
+2. **Check Documentation First:** Refer to `PRD.md`, `BUSINESS_RULES.md`, and `DATABASE_SCHEMA.md` as authoritative domain specifications.
+3. **Never Invent Rules:** If a requirement is ambiguous, check the problem statement or ask before making assumptions.
+4. **Preserve Multi-Tenancy:** Every repository query must enforce `organization_id` isolation.
+5. **Ensure Sub-2-Second Performance:** Use database indexes, limit/offset pagination, and server-side aggregation for reporting.
+6. **Write Clean, Idiomatic Code:** Follow PEP 8, use explicit type annotations, and maintain test coverage for all domain logic.

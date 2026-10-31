@@ -198,29 +198,60 @@ odoo_hackathon/
 │   ├── IMPLEMENTATION_PLAN.md
 │   └── AI_CONTEXT.MD
 ├── app/
-│   ├── core/               # App config, database session, security, exceptions
-│   ├── models/             # SQLAlchemy 2.0 ORM models
-│   ├── schemas/            # Pydantic validation schemas
-│   ├── repositories/       # Database access and query encapsulation
-│   ├── services/           # Domain logic (Billing, Quotes, Subs, Taxes, Discounts, Payments)
-│   ├── web/                # FastAPI Jinja2 template routes (Admin, Staff, Customer Portal)
+│   ├── core/               # App config, database session, security, exceptions [Dev 1]
+│   ├── models/             # SQLAlchemy 2.0 ORM models [Dev 1]
+│   ├── schemas/            # Pydantic validation schemas [Dev 1]
+│   ├── repositories/       # Database access and query encapsulation [Dev 1]
+│   ├── services/           # Domain logic (Billing, Quotes, Subs, Taxes, Discounts) [Dev 1]
+│   ├── web/                # Shared View Controllers (Jinja2 + HTMX endpoints) [Dev 1 & Dev 2 Handshake]
 │   │   ├── admin/
 │   │   ├── staff/
 │   │   └── portal/
-│   ├── api/v1/             # REST API endpoints (Auth, Webhooks, Export)
-│   ├── templates/          # Jinja2 HTML templates + HTMX partials
+│   ├── api/v1/             # REST API endpoints (Auth, Webhooks, Export) [Dev 1]
+│   ├── templates/          # Jinja2 HTML templates + HTMX partials [Dev 2]
 │   │   ├── base.html
 │   │   ├── components/
 │   │   ├── admin/
 │   │   ├── staff/
 │   │   └── portal/
-│   ├── static/             # Vanilla CSS, SVG icons, minimal client JS
-│   ├── workers/            # Celery worker tasks (Billing day run, email dispatch)
+│   ├── static/             # Vanilla CSS design system, SVG icons, client scripts [Dev 2]
+│   ├── workers/            # Celery worker tasks (Billing day run, email dispatch) [Dev 1]
 │   └── main.py             # ASGI entrypoint
-├── migrations/             # Alembic migration revisions
-├── tests/                  # Pytest automated test suites
+├── migrations/             # Alembic migration revisions [Dev 1]
+├── tests/                  # Pytest automated test suites [Dev 1: backend tests; Dev 2: view tests]
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
 └── README.md
 ```
+
+---
+
+## 8. Team Work Division & Frontend/Backend Decoupling
+
+To allow two developers to work concurrently without merge bottlenecks:
+
+### 8.1 Developer 1 (Backend Engineer)
+- **Primary Domain:** Data layer, business logic, asynchronous tasks, payment cryptography, and REST endpoints.
+- **Owned Paths:**
+  - `app/models/`: Declarative schemas, foreign keys, and indexes.
+  - `app/repositories/`: Tenant-scoped query operations.
+  - `app/services/`: Calculation math, state machines, billing sweeps, and invoice generators.
+  - `app/api/v1/`: Pure JSON REST endpoints and Razorpay webhook verification.
+  - `app/workers/`: Celery task definitions and scheduled billing sweeps.
+  - `migrations/`: Alembic migration versions.
+- **Workflow:** Can be developed and verified 100% headlessly using Pytest test suites.
+
+### 8.2 Developer 2 (Frontend & UI/UX Engineer)
+- **Primary Domain:** Aesthetics, layout, user experience, responsive tables, forms, modals, printable CSS, and HTMX interactivity.
+- **Owned Paths:**
+  - `app/templates/`: Base layouts, page views, and HTMX fragment partials.
+  - `app/static/`: CSS tokens, typography, micro-animations, icons, and client helpers.
+- **Workflow:** Can build and preview views independently by mocking template context variables in placeholder view functions before backend services are completed.
+
+### 8.3 The HTMX Handshake Contract (`app/web/`)
+The interface boundary between Frontend and Backend is defined by:
+1. **Target IDs:** Frontend defines unique IDs (e.g. `#product-table-body`, `#invoice-status-badge`, `#modal-container`).
+2. **HTMX Swaps:** Backend endpoints return clean HTML partials matching those target IDs using `hx-target` and `hx-swap="outerHTML"` or `innerHTML`.
+3. **Trigger Events:** Backend responses can send HTTP header `HX-Trigger: {"invoicePaid": true, "showToast": "Payment recorded"}` to trigger UI updates without full page reloads.
+
