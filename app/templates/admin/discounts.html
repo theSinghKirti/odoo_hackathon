@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Discount Rules — Subly{% endblock %}
+
+{% block breadcrumb %}
+<div style="display: flex; align-items: center; gap: 8px;">
+  <span>Workspace</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">Discount Rules</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+        <span class="badge badge-admin">Promotions & Discounts</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Incentive Engine</span>
+      </div>
+      <h1 style="font-size: 1.5rem; color: var(--navy); margin-bottom: 4px;">
+        Discount Rules
+      </h1>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        Create and manage promotional discounts, volume incentives, and redemption limits.
+      </p>
+    </div>
+
+    <div>
+      <button 
+        type="button" 
+        class="btn btn-teal"
+        id="btn-create-discount"
+        hx-get="/web/discounts/modal"
+        hx-target="#modal-container"
+        hx-swap="innerHTML"
+        style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600;"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>+ Create Discount</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Statistic Cards -->
+<div class="grid" id="discount-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+  <!-- Card 1: Total Discounts -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Total Discounts</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="5" x2="5" y2="19"/>
+          <circle cx="6.5" cy="6.5" r="2.5"/>
+          <circle cx="17.5" cy="17.5" r="2.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-total-discounts">{{ stats.total }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">All promotional rules</p>
+  </div>
+
+  <!-- Card 2: Active Discounts -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Active Discounts</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-active-discounts">{{ stats.active }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Currently eligible for use</p>
+  </div>
+
+  <!-- Card 3: Expired / Scheduled -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Expired / Scheduled</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-pink); color: #DC2626; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-inactive-discounts">{{ stats.inactive }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Past or upcoming dates</p>
+  </div>
+
+  <!-- Card 4: Total Redemptions -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Redemptions</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-lavender); color: #7C3AED; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <polyline points="16 11 18 13 22 9"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-redemptions-discounts">{{ stats.redemptions }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Lifetime promo uses</p>
+  </div>
+</div>
+
+<!-- Filter and Search Toolbar -->
+<div class="catalog-toolbar">
+  <!-- Hidden input tracking currently active status filter -->
+  <input type="hidden" name="status" id="discount-status-filter" value="">
+
+  <!-- Status Filters -->
+  <div class="filter-pills" id="discount-filter-group">
+    <button 
+      type="button" 
+      class="filter-pill active" 
+      hx-get="/web/discounts" 
+      hx-target="#discounts-table-body" 
+      hx-include="#discount-search"
+      onclick="document.querySelectorAll('#discount-filter-group .filter-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); document.getElementById('discount-status-filter').value = '';"
+    >
+      All Discounts
+    </button>
+    <button 
+      type="button" 
+      class="filter-pill" 
+      hx-get="/web/discounts?status=active" 
+      hx-target="#discounts-table-body" 
+      hx-include="#discount-search"
+      onclick="document.querySelectorAll('#discount-filter-group .filter-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); document.getElementById('discount-status-filter').value = 'active';"
+    >
+      Active
+    </button>
+    <button 
+      type="button" 
+      class="filter-pill" 
+      hx-get="/web/discounts?status=inactive" 
+      hx-target="#discounts-table-body" 
+      hx-include="#discount-search"
+      onclick="document.querySelectorAll('#discount-filter-group .filter-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); document.getElementById('discount-status-filter').value = 'inactive';"
+    >
+      Inactive
+    </button>
+    <button 
+      type="button" 
+      class="filter-pill" 
+      hx-get="/web/discounts?status=expired" 
+      hx-target="#discounts-table-body" 
+      hx-include="#discount-search"
+      onclick="document.querySelectorAll('#discount-filter-group .filter-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); document.getElementById('discount-status-filter').value = 'expired';"
+    >
+      Expired
+    </button>
+    <button 
+      type="button" 
+      class="filter-pill" 
+      hx-get="/web/discounts?status=scheduled" 
+      hx-target="#discounts-table-body" 
+      hx-include="#discount-search"
+      onclick="document.querySelectorAll('#discount-filter-group .filter-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); document.getElementById('discount-status-filter').value = 'scheduled';"
+    >
+      Scheduled
+    </button>
+  </div>
+
+  <!-- Live Search Box -->
+  <div class="search-box-wrapper">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input 
+      type="text" 
+      id="discount-search" 
+      name="search" 
+      class="form-input" 
+      placeholder="Search discounts by name..." 
+      hx-get="/web/discounts" 
+      hx-trigger="keyup changed delay:300ms, search" 
+      hx-target="#discounts-table-body" 
+      hx-swap="innerHTML"
+      hx-include="#discount-status-filter"
+    />
+  </div>
+</div>
+
+<!-- Discounts Data Table -->
+<div class="table-responsive">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 25%;">Discount Name</th>
+        <th style="width: 14%;">Type</th>
+        <th style="width: 12%;">Value</th>
+        <th style="width: 14%;">Conditions</th>
+        <th style="width: 14%;">Validity</th>
+        <th style="width: 11%;">Usage</th>
+        <th style="width: 10%;">Status</th>
+        <th style="width: 10%; text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="discounts-table-body">
+      {% include "admin/partials/discount_table.html" %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal Container & Notifications -->
+<div id="modal-container"></div>
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+  function closeModal() {
+    const container = document.getElementById('modal-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+</script>
+{% endblock %}

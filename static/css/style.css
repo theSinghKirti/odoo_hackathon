@@ -1459,3 +1459,60 @@ a:hover {
   border-radius: var(--radius-sm);
   margin-bottom: 8px;
 }
+
+
+/* --------------------------------------------------------------------------
+   15. TAX & DISCOUNT RULES (F4)
+   -------------------------------------------------------------------------- */
+.badge-fixed_amount, .badge-fixed {
+  background-color: var(--pastel-sky);
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
+}
+
+.badge-percentage, .badge-percent {
+  background-color: var(--pastel-lavender);
+  color: #6B21A8;
+  border: 1px solid #E9D5FF;
+}
+
+.badge-expired {
+  background-color: var(--pastel-pink);
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+.badge-scheduled {
+  background-color: var(--pastel-yellow);
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.usage-progress {
+  width: 100%;
+  max-width: 140px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background-color: #E2E8F0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--primary-teal);
+  border-radius: var(--radius-full);
+  transition: width 300ms ease;
+}
+
+.progress-fill.near-limit {
+  background-color: var(--warning);
+}
+
+.progress-fill.exhausted {
+  background-color: var(--danger);
+}

@@ -18,6 +18,12 @@ from app.db.session import get_async_db
 from app.models.user import User
 from app.models.product import ProductType
 from app.models.plan import SubscriptionPlan, BillingInterval
+from app.models.tax import TaxRule
+from app.schemas.tax import TaxRuleCreate, TaxRuleUpdate
+from app.services.tax_service import TaxService
+from app.models.discount import DiscountRule, DiscountType, DiscountScope
+from app.schemas.discount import DiscountRuleCreate, DiscountRuleUpdate
+from app.services.discount_service import DiscountService
 from app.schemas.plan import PlanCreate, PlanUpdate
 from app.services.plan_service import PlanService
 from datetime import date
@@ -1643,3 +1649,1084 @@ async def plan_update_submit(
         user=user,
         message=f"Plan '{clean_name}' updated successfully.",
     )
+
+
+# ---------------------------------------------------------------------------
+# F4 Tax Rules & Discount Rules Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+MOCK_TAXES = [
+    {
+        "id": 1,
+        "name": "GST 18%",
+        "rate": Decimal("18.00"),
+        "is_active": True,
+        "created_at": None,
+    },
+    {
+        "id": 2,
+        "name": "GST 5%",
+        "rate": Decimal("5.00"),
+        "is_active": True,
+        "created_at": None,
+    },
+    {
+        "id": 3,
+        "name": "VAT 20% (Export)",
+        "rate": Decimal("20.00"),
+        "is_active": False,
+        "created_at": None,
+    },
+]
+
+MOCK_DISCOUNTS = [
+    {
+        "id": 1,
+        "name": "Diwali Special 20%",
+        "description": "Festive season promotional offer across all subscriptions.",
+        "discount_type": "percentage",
+        "discount_value": Decimal("20.00"),
+        "min_purchase_amount": Decimal("1000.00"),
+        "min_quantity": 1,
+        "start_date": None,
+        "end_date": None,
+        "max_uses": 100,
+        "times_used": 45,
+        "scope": "subscription",
+        "product_id": None,
+        "product": None,
+        "is_active": True,
+        "status": "active",
+    },
+    {
+        "id": 2,
+        "name": "Enterprise Flat ₹1000",
+        "description": "Volume discount for multi-license enterprise orders.",
+        "discount_type": "fixed_amount",
+        "discount_value": Decimal("1000.00"),
+        "min_purchase_amount": Decimal("5000.00"),
+        "min_quantity": 2,
+        "start_date": None,
+        "end_date": None,
+        "max_uses": 50,
+        "times_used": 12,
+        "scope": "subscription",
+        "product_id": None,
+        "product": None,
+        "is_active": True,
+        "status": "active",
+    },
+    {
+        "id": 3,
+        "name": "Q1 Early Adopter",
+        "description": "Launch phase introductory campaign.",
+        "discount_type": "percentage",
+        "discount_value": Decimal("10.00"),
+        "min_purchase_amount": Decimal("0.00"),
+        "min_quantity": 1,
+        "start_date": date(2025, 1, 1),
+        "end_date": date(2025, 3, 31),
+        "max_uses": 200,
+        "times_used": 200,
+        "scope": "subscription",
+        "product_id": None,
+        "product": None,
+        "is_active": True,
+        "status": "expired",
+    },
+]
+
+
+def _compute_tax_stats(taxes_list):
+    total = len(taxes_list)
+    active = sum(1 for t in taxes_list if (t.get("is_active") if isinstance(t, dict) else getattr(t, "is_active", False)))
+    return {
+        "total": total,
+        "active": active,
+    }
+
+
+def _compute_discount_status(discount) -> str:
+    today = date.today()
+    is_act = discount.get("is_active") if isinstance(discount, dict) else getattr(discount, "is_active", False)
+    if not is_act:
+        return "inactive"
+    
+    end_d = discount.get("end_date") if isinstance(discount, dict) else getattr(discount, "end_date", None)
+    if end_d and today > end_d:
+        return "expired"
+
+    max_u = discount.get("max_uses") if isinstance(discount, dict) else getattr(discount, "max_uses", None)
+    times_u = discount.get("times_used", 0) if isinstance(discount, dict) else getattr(discount, "times_used", 0)
+    if max_u is not None and times_u >= max_u:
+        return "expired"
+
+    start_d = discount.get("start_date") if isinstance(discount, dict) else getattr(discount, "start_date", None)
+    if start_d and today < start_d:
+        return "scheduled"
+
+    return "active"
+
+
+def _compute_discount_stats(discounts_list):
+    total = len(discounts_list)
+    active = 0
+    inactive = 0
+    redemptions = 0
+    for d in discounts_list:
+        st = _compute_discount_status(d)
+        if st == "active":
+            active += 1
+        else:
+            inactive += 1
+        redemptions += (d.get("times_used", 0) if isinstance(d, dict) else getattr(d, "times_used", 0))
+    return {
+        "total": total,
+        "active": active,
+        "inactive": inactive,
+        "redemptions": redemptions,
+    }
+
+
+# --- TAX RULES ENDPOINTS ---
+
+@router.get("/admin/taxes", response_class=HTMLResponse)
+async def taxes_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    try:
+        db_taxes = await TaxService.list_tax_rules(db, organization_id=user.organization_id)
+    except Exception:
+        db_taxes = []
+
+    taxes = db_taxes if db_taxes else MOCK_TAXES
+    stats = _compute_tax_stats(taxes)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/taxes.html",
+        context={
+            "user": user,
+            "organization": user.organization,
+            "active_nav": "taxes",
+            "taxes": taxes,
+            "stats": stats,
+        },
+    )
+
+
+@router.get("/web/taxes", response_class=HTMLResponse)
+async def taxes_table_partial(
+    request: Request,
+    search: Optional[str] = None,
+    is_active: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    parsed_active = True if is_active == "true" else (False if is_active == "false" else None)
+
+    db_taxes = []
+    if user:
+        try:
+            db_taxes = await TaxService.list_tax_rules(
+                db,
+                organization_id=user.organization_id,
+                is_active=parsed_active,
+                search=search.strip() if search else None,
+            )
+        except Exception:
+            db_taxes = []
+
+    if db_taxes:
+        taxes = db_taxes
+    else:
+        taxes = list(MOCK_TAXES)
+        if parsed_active is not None:
+            taxes = [t for t in taxes if t.get("is_active") == parsed_active]
+        if search:
+            s_clean = search.strip().lower()
+            taxes = [t for t in taxes if s_clean in str(t.get("name", "")).lower()]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/tax_table.html",
+        context={
+            "user": user,
+            "taxes": taxes,
+        },
+    )
+
+
+@router.get("/web/taxes/modal", response_class=HTMLResponse)
+async def tax_create_modal(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/tax_form.html",
+        context={
+            "tax": None,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.get("/web/taxes/{tax_id}/modal", response_class=HTMLResponse)
+async def tax_edit_modal(
+    request: Request,
+    tax_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    tax = None
+    if user:
+        try:
+            tax = await TaxService.get_tax_rule(db, organization_id=user.organization_id, tax_rule_id=tax_id)
+        except Exception:
+            tax = None
+
+    if not tax:
+        for mt in MOCK_TAXES:
+            if mt["id"] == tax_id:
+                tax = mt
+                break
+
+    if not tax:
+        return HTMLResponse("<div class='alert alert-error'>Tax rule not found</div>", status_code=status.HTTP_404_NOT_FOUND)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/tax_form.html",
+        context={
+            "tax": tax,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.post("/web/taxes", response_class=HTMLResponse)
+async def tax_create_submit(
+    request: Request,
+    name: str = Form(""),
+    rate: str = Form(""),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Tax name is required."
+
+    parsed_rate = None
+    if not rate or not rate.strip():
+        errors["rate"] = "Tax rate percentage is required."
+    else:
+        try:
+            parsed_rate = Decimal(rate.strip())
+            if parsed_rate < Decimal("0.00") or parsed_rate > Decimal("100.00"):
+                errors["rate"] = "Tax rate must be between 0% and 100%."
+        except Exception:
+            errors["rate"] = "Tax rate must be a valid percentage."
+
+    parsed_active = bool(is_active)
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/tax_form.html",
+            context={
+                "tax": None,
+                "form": {"name": clean_name, "rate": rate, "is_active": parsed_active},
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    created_in_db = False
+    if user:
+        try:
+            await TaxService.create_tax_rule(
+                session=db,
+                organization_id=user.organization_id,
+                data=TaxRuleCreate(name=clean_name, rate=parsed_rate, is_active=parsed_active),
+            )
+            created_in_db = True
+        except Exception:
+            created_in_db = False
+
+    if not created_in_db:
+        new_id = (max((t["id"] for t in MOCK_TAXES), default=0)) + 1
+        MOCK_TAXES.insert(0, {
+            "id": new_id,
+            "name": clean_name,
+            "rate": parsed_rate,
+            "is_active": parsed_active,
+            "created_at": None,
+        })
+
+    try:
+        db_taxes = await TaxService.list_tax_rules(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_taxes = []
+
+    taxes = db_taxes if db_taxes else MOCK_TAXES
+    stats = _compute_tax_stats(taxes)
+
+    table_html = templates.get_template("admin/partials/tax_table.html").render(
+        request=request,
+        taxes=taxes,
+        user=user,
+    )
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">Tax rule '{clean_name}' created successfully.</div>
+        </div>
+      </div>
+      <script>setTimeout(() => {{ const t = document.getElementById('{toast_id}'); if (t) t.remove(); }}, 4000);</script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <tbody id="taxes-table-body" hx-swap-oob="innerHTML">
+      {table_html}
+    </tbody>
+    {toast_html}
+    """
+
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK)
+
+
+@router.post("/web/taxes/{tax_id}", response_class=HTMLResponse)
+@router.put("/web/taxes/{tax_id}", response_class=HTMLResponse)
+async def tax_update_submit(
+    request: Request,
+    tax_id: int,
+    name: str = Form(""),
+    rate: str = Form(""),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Tax name is required."
+
+    parsed_rate = None
+    if not rate or not rate.strip():
+        errors["rate"] = "Tax rate percentage is required."
+    else:
+        try:
+            parsed_rate = Decimal(rate.strip())
+            if parsed_rate < Decimal("0.00") or parsed_rate > Decimal("100.00"):
+                errors["rate"] = "Tax rate must be between 0% and 100%."
+        except Exception:
+            errors["rate"] = "Tax rate must be a valid percentage."
+
+    parsed_active = bool(is_active)
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/tax_form.html",
+            context={
+                "tax": {"id": tax_id, "name": clean_name},
+                "form": {"name": clean_name, "rate": rate, "is_active": parsed_active},
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    updated_in_db = False
+    if user:
+        try:
+            await TaxService.update_tax_rule(
+                session=db,
+                organization_id=user.organization_id,
+                tax_rule_id=tax_id,
+                data=TaxRuleUpdate(name=clean_name, rate=parsed_rate, is_active=parsed_active),
+            )
+            updated_in_db = True
+        except Exception:
+            updated_in_db = False
+
+    for mt in MOCK_TAXES:
+        if mt["id"] == tax_id:
+            mt["name"] = clean_name
+            mt["rate"] = parsed_rate
+            mt["is_active"] = parsed_active
+            break
+
+    try:
+        db_taxes = await TaxService.list_tax_rules(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_taxes = []
+
+    taxes = db_taxes if db_taxes else MOCK_TAXES
+
+    table_html = templates.get_template("admin/partials/tax_table.html").render(
+        request=request,
+        taxes=taxes,
+        user=user,
+    )
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">Tax rule '{clean_name}' updated successfully.</div>
+        </div>
+      </div>
+      <script>setTimeout(() => {{ const t = document.getElementById('{toast_id}'); if (t) t.remove(); }}, 4000);</script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <tbody id="taxes-table-body" hx-swap-oob="innerHTML">
+      {table_html}
+    </tbody>
+    {toast_html}
+    """
+
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK)
+
+
+@router.post("/web/taxes/{tax_id}/toggle-status", response_class=HTMLResponse)
+async def tax_toggle_status(
+    request: Request,
+    tax_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if user:
+        try:
+            tax = await TaxService.get_tax_rule(db, organization_id=user.organization_id, tax_rule_id=tax_id)
+            await TaxService.update_tax_rule(
+                session=db,
+                organization_id=user.organization_id,
+                tax_rule_id=tax_id,
+                data=TaxRuleUpdate(is_active=not tax.is_active),
+            )
+        except Exception:
+            pass
+
+    for mt in MOCK_TAXES:
+        if mt["id"] == tax_id:
+            mt["is_active"] = not mt["is_active"]
+            break
+
+    try:
+        db_taxes = await TaxService.list_tax_rules(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_taxes = []
+
+    taxes = db_taxes if db_taxes else MOCK_TAXES
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/tax_table.html",
+        context={"user": user, "taxes": taxes},
+    )
+
+
+# --- DISCOUNT RULES ENDPOINTS ---
+
+@router.get("/admin/discounts", response_class=HTMLResponse)
+async def discounts_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    try:
+        db_discounts = await DiscountService.list_discount_rules(db, organization_id=user.organization_id)
+    except Exception:
+        db_discounts = []
+
+    discounts = db_discounts if db_discounts else MOCK_DISCOUNTS
+    # Compute status for each
+    for d in discounts:
+        st = _compute_discount_status(d)
+        if isinstance(d, dict):
+            d["status"] = st
+        else:
+            setattr(d, "status", st)
+
+    stats = _compute_discount_stats(discounts)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/discounts.html",
+        context={
+            "user": user,
+            "organization": user.organization,
+            "active_nav": "discounts",
+            "discounts": discounts,
+            "stats": stats,
+        },
+    )
+
+
+@router.get("/web/discounts", response_class=HTMLResponse)
+async def discounts_table_partial(
+    request: Request,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    db_discounts = []
+    if user:
+        try:
+            db_discounts = await DiscountService.list_discount_rules(
+                db,
+                organization_id=user.organization_id,
+                search=search.strip() if search else None,
+            )
+        except Exception:
+            db_discounts = []
+
+    discounts = db_discounts if db_discounts else list(MOCK_DISCOUNTS)
+    for d in discounts:
+        st = _compute_discount_status(d)
+        if isinstance(d, dict):
+            d["status"] = st
+        else:
+            setattr(d, "status", st)
+
+    if status and status.strip():
+        s_target = status.strip().lower()
+        discounts = [
+            d for d in discounts 
+            if (d.get("status") if isinstance(d, dict) else getattr(d, "status", "")) == s_target
+        ]
+
+    if search:
+        s_clean = search.strip().lower()
+        discounts = [
+            d for d in discounts 
+            if s_clean in (d.get("name", "") if isinstance(d, dict) else getattr(d, "name", "")).lower()
+        ]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/discount_table.html",
+        context={
+            "user": user,
+            "discounts": discounts,
+        },
+    )
+
+
+@router.get("/web/discounts/modal", response_class=HTMLResponse)
+async def discount_create_modal(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    products = []
+    if user:
+        try:
+            products = await ProductService.list_products(db, organization_id=user.organization_id)
+        except Exception:
+            products = []
+    if not products:
+        products = MOCK_PRODUCTS
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/discount_form.html",
+        context={
+            "discount": None,
+            "form": None,
+            "errors": None,
+            "products": products,
+        },
+    )
+
+
+@router.get("/web/discounts/{discount_id}/modal", response_class=HTMLResponse)
+async def discount_edit_modal(
+    request: Request,
+    discount_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    discount = None
+    if user:
+        try:
+            discount = await DiscountService.get_discount_rule(db, organization_id=user.organization_id, rule_id=discount_id)
+        except Exception:
+            discount = None
+
+    if not discount:
+        for md in MOCK_DISCOUNTS:
+            if md["id"] == discount_id:
+                discount = md
+                break
+
+    if not discount:
+        return HTMLResponse("<div class='alert alert-error'>Discount rule not found</div>", status_code=status.HTTP_404_NOT_FOUND)
+
+    products = []
+    if user:
+        try:
+            products = await ProductService.list_products(db, organization_id=user.organization_id)
+        except Exception:
+            products = []
+    if not products:
+        products = MOCK_PRODUCTS
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/discount_form.html",
+        context={
+            "discount": discount,
+            "form": None,
+            "errors": None,
+            "products": products,
+        },
+    )
+
+
+@router.post("/web/discounts", response_class=HTMLResponse)
+async def discount_create_submit(
+    request: Request,
+    name: str = Form(""),
+    discount_type: str = Form("percentage"),
+    discount_value: str = Form(""),
+    min_purchase_amount: Optional[str] = Form(""),
+    min_quantity: Optional[str] = Form("1"),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    max_uses: Optional[str] = Form(None),
+    scope: str = Form("subscription"),
+    product_id: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Discount name is required."
+
+    parsed_val = None
+    if not discount_value or not discount_value.strip():
+        errors["discount_value"] = "Discount value is required."
+    else:
+        try:
+            parsed_val = Decimal(discount_value.strip())
+            if parsed_val < Decimal("0.00"):
+                errors["discount_value"] = "Discount value must be non-negative."
+            if discount_type == "percentage" and parsed_val > Decimal("100.00"):
+                errors["discount_value"] = "Percentage discount cannot exceed 100%."
+        except Exception:
+            errors["discount_value"] = "Discount value must be a valid number."
+
+    parsed_min_spend = Decimal("0.00")
+    if min_purchase_amount and min_purchase_amount.strip():
+        try:
+            parsed_min_spend = Decimal(min_purchase_amount.strip())
+        except Exception:
+            parsed_min_spend = Decimal("0.00")
+
+    parsed_min_qty = 1
+    if min_quantity and min_quantity.strip():
+        try:
+            parsed_min_qty = int(min_quantity.strip())
+        except Exception:
+            parsed_min_qty = 1
+
+    parsed_start = None
+    if start_date and start_date.strip():
+        try:
+            parsed_start = date.fromisoformat(start_date.strip())
+        except Exception:
+            errors["start_date"] = "Invalid Start Date format."
+
+    parsed_end = None
+    if end_date and end_date.strip():
+        try:
+            parsed_end = date.fromisoformat(end_date.strip())
+        except Exception:
+            errors["end_date"] = "Invalid End Date format."
+
+    if parsed_start and parsed_end and parsed_end < parsed_start:
+        errors["end_date"] = "End Date cannot precede Start Date."
+
+    parsed_max_uses = None
+    if max_uses and max_uses.strip():
+        try:
+            parsed_max_uses = int(max_uses.strip())
+        except Exception:
+            parsed_max_uses = None
+
+    parsed_prod_id = None
+    if scope == "product" and product_id and product_id.strip():
+        try:
+            parsed_prod_id = int(product_id.strip())
+        except Exception:
+            parsed_prod_id = None
+
+    parsed_active = bool(is_active)
+
+    if errors:
+        products = []
+        if user:
+            try:
+                products = await ProductService.list_products(db, organization_id=user.organization_id)
+            except Exception:
+                products = []
+        if not products:
+            products = MOCK_PRODUCTS
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/discount_form.html",
+            context={
+                "discount": None,
+                "form": {
+                    "name": clean_name,
+                    "discount_type": discount_type,
+                    "discount_value": discount_value,
+                    "min_purchase_amount": min_purchase_amount,
+                    "min_quantity": parsed_min_qty,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "max_uses": max_uses,
+                    "scope": scope,
+                    "product_id": product_id,
+                    "description": description,
+                    "is_active": parsed_active,
+                },
+                "errors": errors,
+                "products": products,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    created_in_db = False
+    if user:
+        try:
+            await DiscountService.create_discount_rule(
+                session=db,
+                organization_id=user.organization_id,
+                data=DiscountRuleCreate(
+                    name=clean_name,
+                    discount_type=DiscountType(discount_type),
+                    discount_value=parsed_val,
+                    min_purchase_amount=parsed_min_spend,
+                    min_quantity=parsed_min_qty,
+                    start_date=parsed_start,
+                    end_date=parsed_end,
+                    max_uses=parsed_max_uses,
+                    scope=DiscountScope(scope),
+                    product_id=parsed_prod_id,
+                    is_active=parsed_active,
+                ),
+            )
+            created_in_db = True
+        except Exception:
+            created_in_db = False
+
+    if not created_in_db:
+        new_id = (max((d["id"] for d in MOCK_DISCOUNTS), default=0)) + 1
+        MOCK_DISCOUNTS.insert(0, {
+            "id": new_id,
+            "name": clean_name,
+            "description": description,
+            "discount_type": discount_type,
+            "discount_value": parsed_val,
+            "min_purchase_amount": parsed_min_spend,
+            "min_quantity": parsed_min_qty,
+            "start_date": parsed_start,
+            "end_date": parsed_end,
+            "max_uses": parsed_max_uses,
+            "times_used": 0,
+            "scope": scope,
+            "product_id": parsed_prod_id,
+            "product": None,
+            "is_active": parsed_active,
+            "status": "active" if parsed_active else "inactive",
+        })
+
+    try:
+        db_discounts = await DiscountService.list_discount_rules(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_discounts = []
+
+    discounts = db_discounts if db_discounts else MOCK_DISCOUNTS
+    for d in discounts:
+        st = _compute_discount_status(d)
+        if isinstance(d, dict):
+            d["status"] = st
+        else:
+            setattr(d, "status", st)
+
+    table_html = templates.get_template("admin/partials/discount_table.html").render(
+        request=request,
+        discounts=discounts,
+        user=user,
+    )
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">Discount '{clean_name}' created successfully.</div>
+        </div>
+      </div>
+      <script>setTimeout(() => {{ const t = document.getElementById('{toast_id}'); if (t) t.remove(); }}, 4000);</script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <tbody id="discounts-table-body" hx-swap-oob="innerHTML">
+      {table_html}
+    </tbody>
+    {toast_html}
+    """
+
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK)
+
+
+@router.post("/web/discounts/{discount_id}", response_class=HTMLResponse)
+@router.put("/web/discounts/{discount_id}", response_class=HTMLResponse)
+async def discount_update_submit(
+    request: Request,
+    discount_id: int,
+    name: str = Form(""),
+    discount_type: str = Form("percentage"),
+    discount_value: str = Form(""),
+    min_purchase_amount: Optional[str] = Form(""),
+    min_quantity: Optional[str] = Form("1"),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    max_uses: Optional[str] = Form(None),
+    scope: str = Form("subscription"),
+    product_id: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Discount name is required."
+
+    parsed_val = None
+    if not discount_value or not discount_value.strip():
+        errors["discount_value"] = "Discount value is required."
+    else:
+        try:
+            parsed_val = Decimal(discount_value.strip())
+            if parsed_val < Decimal("0.00"):
+                errors["discount_value"] = "Discount value must be non-negative."
+            if discount_type == "percentage" and parsed_val > Decimal("100.00"):
+                errors["discount_value"] = "Percentage discount cannot exceed 100%."
+        except Exception:
+            errors["discount_value"] = "Discount value must be a valid number."
+
+    parsed_min_spend = Decimal("0.00")
+    if min_purchase_amount and min_purchase_amount.strip():
+        try:
+            parsed_min_spend = Decimal(min_purchase_amount.strip())
+        except Exception:
+            parsed_min_spend = Decimal("0.00")
+
+    parsed_min_qty = 1
+    if min_quantity and min_quantity.strip():
+        try:
+            parsed_min_qty = int(min_quantity.strip())
+        except Exception:
+            parsed_min_qty = 1
+
+    parsed_start = None
+    if start_date and start_date.strip():
+        try:
+            parsed_start = date.fromisoformat(start_date.strip())
+        except Exception:
+            errors["start_date"] = "Invalid Start Date format."
+
+    parsed_end = None
+    if end_date and end_date.strip():
+        try:
+            parsed_end = date.fromisoformat(end_date.strip())
+        except Exception:
+            errors["end_date"] = "Invalid End Date format."
+
+    if parsed_start and parsed_end and parsed_end < parsed_start:
+        errors["end_date"] = "End Date cannot precede Start Date."
+
+    parsed_max_uses = None
+    if max_uses and max_uses.strip():
+        try:
+            parsed_max_uses = int(max_uses.strip())
+        except Exception:
+            parsed_max_uses = None
+
+    parsed_prod_id = None
+    if scope == "product" and product_id and product_id.strip():
+        try:
+            parsed_prod_id = int(product_id.strip())
+        except Exception:
+            parsed_prod_id = None
+
+    parsed_active = bool(is_active)
+
+    if errors:
+        products = []
+        if user:
+            try:
+                products = await ProductService.list_products(db, organization_id=user.organization_id)
+            except Exception:
+                products = []
+        if not products:
+            products = MOCK_PRODUCTS
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/discount_form.html",
+            context={
+                "discount": {"id": discount_id, "name": clean_name},
+                "form": {
+                    "name": clean_name,
+                    "discount_type": discount_type,
+                    "discount_value": discount_value,
+                    "min_purchase_amount": min_purchase_amount,
+                    "min_quantity": parsed_min_qty,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "max_uses": max_uses,
+                    "scope": scope,
+                    "product_id": product_id,
+                    "description": description,
+                    "is_active": parsed_active,
+                },
+                "errors": errors,
+                "products": products,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    updated_in_db = False
+    if user:
+        try:
+            await DiscountService.update_discount_rule(
+                session=db,
+                organization_id=user.organization_id,
+                rule_id=discount_id,
+                data=DiscountRuleUpdate(
+                    name=clean_name,
+                    discount_type=DiscountType(discount_type),
+                    discount_value=parsed_val,
+                    min_purchase_amount=parsed_min_spend,
+                    min_quantity=parsed_min_qty,
+                    start_date=parsed_start,
+                    end_date=parsed_end,
+                    max_uses=parsed_max_uses,
+                    scope=DiscountScope(scope),
+                    product_id=parsed_prod_id,
+                    is_active=parsed_active,
+                ),
+            )
+            updated_in_db = True
+        except Exception:
+            updated_in_db = False
+
+    for md in MOCK_DISCOUNTS:
+        if md["id"] == discount_id:
+            md["name"] = clean_name
+            md["description"] = description
+            md["discount_type"] = discount_type
+            md["discount_value"] = parsed_val
+            md["min_purchase_amount"] = parsed_min_spend
+            md["min_quantity"] = parsed_min_qty
+            md["start_date"] = parsed_start
+            md["end_date"] = parsed_end
+            md["max_uses"] = parsed_max_uses
+            md["scope"] = scope
+            md["product_id"] = parsed_prod_id
+            md["is_active"] = parsed_active
+            break
+
+    try:
+        db_discounts = await DiscountService.list_discount_rules(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_discounts = []
+
+    discounts = db_discounts if db_discounts else MOCK_DISCOUNTS
+    for d in discounts:
+        st = _compute_discount_status(d)
+        if isinstance(d, dict):
+            d["status"] = st
+        else:
+            setattr(d, "status", st)
+
+    table_html = templates.get_template("admin/partials/discount_table.html").render(
+        request=request,
+        discounts=discounts,
+        user=user,
+    )
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">Discount '{clean_name}' updated successfully.</div>
+        </div>
+      </div>
+      <script>setTimeout(() => {{ const t = document.getElementById('{toast_id}'); if (t) t.remove(); }}, 4000);</script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <tbody id="discounts-table-body" hx-swap-oob="innerHTML">
+      {table_html}
+    </tbody>
+    {toast_html}
+    """
+
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK)

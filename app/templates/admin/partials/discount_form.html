@@ -1,0 +1,319 @@
+<div class="modal-backdrop" id="discount-modal-backdrop" onclick="if (event.target === this) closeModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 680px;">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-title" class="modal-title">
+          {{ "Edit Discount Rule" if discount and discount.id else "Create Discount Rule" }}
+        </h2>
+        <p class="modal-subtitle">
+          {{ "Update promotional pricing and redemption conditions." if discount and discount.id else "Configure promotional discounts, triggers, and redemption limits." }}
+        </p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeModal();" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form 
+      id="discount-form"
+      hx-post="{{ '/web/discounts/' ~ discount.id if discount and discount.id else '/web/discounts' }}"
+      hx-target="#discount-modal-backdrop"
+      hx-swap="outerHTML"
+      hx-indicator="#modal-spinner"
+    >
+      <div class="modal-body">
+        
+        {% if errors and errors._global %}
+          <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+            {{ errors._global }}
+          </div>
+        {% endif %}
+
+        <!-- Usage Progress Display (if edit mode with max_uses) -->
+        {% if discount and discount.max_uses %}
+          {% set pct = [((discount.times_used / discount.max_uses) * 100)|round|int, 100]|min %}
+          <div style="background: #F8FAFD; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: var(--space-4);">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: var(--navy); margin-bottom: 4px;">
+              <span>Usage Progress</span>
+              <span>{{ discount.times_used }} / {{ discount.max_uses }} uses ({{ pct }}%)</span>
+            </div>
+            <div class="progress-track" style="height: 8px;">
+              <div class="progress-fill {{ 'exhausted' if pct >= 100 else ('near-limit' if pct >= 80 else '') }}" style="width: {{ pct }}%;"></div>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Section 1: Basic Information -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin-bottom: 12px; font-weight: 700;">
+          Basic Information
+        </h4>
+
+        <div class="form-grid-2">
+          <!-- Discount Name (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="discount-name" class="form-label">
+              Discount Name <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <input 
+              type="text" 
+              name="name" 
+              id="discount-name" 
+              class="form-input {% if errors and errors.name %}is-invalid{% endif %}" 
+              placeholder="e.g. Diwali Launch 20%, Q4 Enterprise ₹1000 Off" 
+              value="{{ form.name if form and form.name is defined else (discount.name if discount else '') }}" 
+              required
+            />
+            {% if errors and errors.name %}
+              <div class="form-error">{{ errors.name }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Discount Type -->
+          <div class="form-group">
+            <label for="discount-type" class="form-label">
+              Discount Type <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            {% set sel_type = form.discount_type if form and form.discount_type is defined else (discount.discount_type.value if (discount and discount.discount_type and discount.discount_type.value is defined) else (discount.discount_type if discount else 'percentage')) %}
+            <select 
+              name="discount_type" 
+              id="discount-type" 
+              class="form-select {% if errors and errors.discount_type %}is-invalid{% endif %}" 
+              onchange="document.getElementById('discount-val-symbol').innerText = this.value === 'percentage' ? '%' : '₹';"
+              required
+            >
+              <option value="percentage" {% if sel_type == 'percentage' %}selected{% endif %}>Percentage (%)</option>
+              <option value="fixed_amount" {% if sel_type == 'fixed_amount' %}selected{% endif %}>Fixed Amount (INR)</option>
+            </select>
+            {% if errors and errors.discount_type %}
+              <div class="form-error">{{ errors.discount_type }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Discount Value -->
+          <div class="form-group">
+            <label for="discount-value" class="form-label">
+              Discount Value <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol" id="discount-val-symbol" style="left: 12px; font-weight: 700;">
+                {{ "₹" if sel_type == 'fixed_amount' else "%" }}
+              </span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                name="discount_value" 
+                id="discount-value" 
+                class="form-input {% if errors and errors.discount_value %}is-invalid{% endif %}" 
+                placeholder="15.00" 
+                value="{{ form.discount_value if form and form.discount_value is defined else (discount.discount_value if discount else '') }}" 
+                required
+              />
+            </div>
+            {% if errors and errors.discount_value %}
+              <div class="form-error">{{ errors.discount_value }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Scope -->
+          <div class="form-group">
+            <label for="discount-scope" class="form-label">Applicable Scope</label>
+            {% set sel_scope = form.scope if form and form.scope is defined else (discount.scope.value if (discount and discount.scope and discount.scope.value is defined) else (discount.scope if discount else 'subscription')) %}
+            <select 
+              name="scope" 
+              id="discount-scope" 
+              class="form-select"
+              onchange="document.getElementById('product-select-group').style.display = this.value === 'product' ? 'block' : 'none';"
+            >
+              <option value="subscription" {% if sel_scope == 'subscription' %}selected{% endif %}>Subscription (Order-Level)</option>
+              <option value="product" {% if sel_scope == 'product' %}selected{% endif %}>Specific Product</option>
+            </select>
+          </div>
+
+          <!-- Specific Product (Conditional) -->
+          <div class="form-group" id="product-select-group" style="display: {{ 'block' if sel_scope == 'product' else 'none' }};">
+            <label for="discount-product-id" class="form-label">Select Product</label>
+            {% set sel_prod_id = form.product_id if form and form.product_id is defined else (discount.product_id if discount and discount.product_id else '') %}
+            <select name="product_id" id="discount-product-id" class="form-select">
+              <option value="">-- All Products in Scope --</option>
+              {% if products %}
+                {% for p in products %}
+                  <option value="{{ p.id }}" {% if sel_prod_id|string == p.id|string %}selected{% endif %}>
+                    {{ p.name }}
+                  </option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+
+          <!-- Status Toggle (Full Width on row if odd) -->
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            {% set is_act = form.is_active if form and form.is_active is defined else (discount.is_active if discount and discount.is_active is defined else True) %}
+            <div class="toggle-container">
+              <label class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  name="is_active" 
+                  id="discount-is-active" 
+                  value="true" 
+                  {% if is_act %}checked{% endif %}
+                  onchange="document.getElementById('discount-status-label').innerText = this.checked ? 'Active' : 'Inactive';"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="discount-status-label">
+                {{ "Active" if is_act else "Inactive" }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Description (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="discount-desc" class="form-label">
+              Description <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <textarea 
+              name="description" 
+              id="discount-desc" 
+              class="form-textarea" 
+              rows="2" 
+              placeholder="Campaign terms, discount rationale or promotional notes"
+            >{{ form.description if form and form.description is defined else (discount.description if discount and discount.description else '') }}</textarea>
+          </div>
+        </div>
+
+        <!-- Section 2: Eligibility & Redemption Limits -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin: 18px 0 12px; font-weight: 700;">
+          Eligibility & Limits
+        </h4>
+
+        <div class="form-grid-2">
+          <!-- Minimum Purchase Amount -->
+          <div class="form-group">
+            <label for="discount-min-spend" class="form-label">
+              Minimum Spend (INR) <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol">₹</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                name="min_purchase_amount" 
+                id="discount-min-spend" 
+                class="form-input" 
+                placeholder="0.00" 
+                value="{{ form.min_purchase_amount if form and form.min_purchase_amount is defined else (discount.min_purchase_amount if discount else '') }}" 
+              />
+            </div>
+          </div>
+
+          <!-- Minimum Quantity -->
+          <div class="form-group">
+            <label for="discount-min-qty" class="form-label">
+              Minimum Quantity <span style="font-weight: 400; color: var(--text-muted);">(Default: 1)</span>
+            </label>
+            <input 
+              type="number" 
+              min="1" 
+              name="min_quantity" 
+              id="discount-min-qty" 
+              class="form-input" 
+              placeholder="1" 
+              value="{{ form.min_quantity if form and form.min_quantity is defined else (discount.min_quantity if discount else 1) }}" 
+            />
+          </div>
+
+          <!-- Maximum Uses -->
+          <div class="form-group form-col-full">
+            <label for="discount-max-uses" class="form-label">
+              Maximum Uses <span style="font-weight: 400; color: var(--text-muted);">(Optional, leave empty for unlimited)</span>
+            </label>
+            <input 
+              type="number" 
+              min="1" 
+              name="max_uses" 
+              id="discount-max-uses" 
+              class="form-input" 
+              placeholder="e.g. 100 uses" 
+              value="{{ form.max_uses if form and form.max_uses is defined else (discount.max_uses if discount and discount.max_uses is not none else '') }}" 
+            />
+          </div>
+        </div>
+
+        <!-- Section 3: Validity Period -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin: 18px 0 12px; font-weight: 700;">
+          Validity Period
+        </h4>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="discount-start-date" class="form-label">
+              Start Date <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <input 
+              type="date" 
+              name="start_date" 
+              id="discount-start-date" 
+              class="form-input {% if errors and errors.start_date %}is-invalid{% endif %}" 
+              value="{{ form.start_date if form and form.start_date is defined else (discount.start_date if discount and discount.start_date else '') }}"
+            />
+            {% if errors and errors.start_date %}
+              <div class="form-error">{{ errors.start_date }}</div>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label for="discount-end-date" class="form-label">
+              End Date <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <input 
+              type="date" 
+              name="end_date" 
+              id="discount-end-date" 
+              class="form-input {% if errors and errors.end_date %}is-invalid{% endif %}" 
+              value="{{ form.end_date if form and form.end_date is defined else (discount.end_date if discount and discount.end_date else '') }}"
+            />
+            {% if errors and errors.end_date %}
+              <div class="form-error">{{ errors.end_date }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-outline" 
+          onclick="closeModal();"
+        >
+          Cancel
+        </button>
+
+        <button 
+          type="submit" 
+          class="btn btn-teal" 
+          id="btn-submit-discount"
+          style="display: inline-flex; align-items: center; gap: 8px;"
+        >
+          <span>{{ "Save Changes" if discount and discount.id else "Create Discount" }}</span>
+          <span class="htmx-indicator" id="modal-spinner" style="display: inline-block;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

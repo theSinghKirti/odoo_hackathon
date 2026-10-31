@@ -1,0 +1,134 @@
+<div class="modal-backdrop" id="tax-modal-backdrop" onclick="if (event.target === this) closeModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 520px;">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-title" class="modal-title">
+          {{ "Edit Tax Rule" if tax and tax.id else "Create Tax Rule" }}
+        </h2>
+        <p class="modal-subtitle">
+          {{ "Update tax percentage and active status." if tax and tax.id else "Configure tax rate applied to products and subscriptions." }}
+        </p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeModal();" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form 
+      id="tax-form"
+      hx-post="{{ '/web/taxes/' ~ tax.id if tax and tax.id else '/web/taxes' }}"
+      hx-target="#tax-modal-backdrop"
+      hx-swap="outerHTML"
+      hx-indicator="#modal-spinner"
+    >
+      <div class="modal-body">
+        
+        {% if errors and errors._global %}
+          <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+            {{ errors._global }}
+          </div>
+        {% endif %}
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+          <!-- Field 1: Tax Name -->
+          <div class="form-group">
+            <label for="tax-name" class="form-label">
+              Tax Name <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <input 
+              type="text" 
+              name="name" 
+              id="tax-name" 
+              class="form-input {% if errors and errors.name %}is-invalid{% endif %}" 
+              placeholder="e.g. GST 18%, VAT 20%, State Sales Tax" 
+              value="{{ form.name if form and form.name is defined else (tax.name if tax else '') }}" 
+              required
+            />
+            {% if errors and errors.name %}
+              <div class="form-error">{{ errors.name }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Field 2: Tax Rate Percentage -->
+          <div class="form-group">
+            <label for="tax-rate" class="form-label">
+              Tax Rate Percentage (%) <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol" style="left: 14px; font-weight: 700;">%</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                max="100"
+                name="rate" 
+                id="tax-rate" 
+                class="form-input {% if errors and errors.rate %}is-invalid{% endif %}" 
+                placeholder="18.00" 
+                value="{{ form.rate if form and form.rate is defined else (tax.rate if tax else '') }}" 
+                required
+              />
+            </div>
+            {% if errors and errors.rate %}
+              <div class="form-error">{{ errors.rate }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Field 3: Status Toggle -->
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            {% set is_act = form.is_active if form and form.is_active is defined else (tax.is_active if tax and tax.is_active is defined else True) %}
+            <div class="toggle-container">
+              <label class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  name="is_active" 
+                  id="tax-is-active" 
+                  value="true" 
+                  {% if is_act %}checked{% endif %}
+                  onchange="document.getElementById('tax-status-label').innerText = this.checked ? 'Active' : 'Inactive';"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="tax-status-label">
+                {{ "Active" if is_act else "Inactive" }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-outline" 
+          onclick="closeModal();"
+        >
+          Cancel
+        </button>
+
+        <button 
+          type="submit" 
+          class="btn btn-teal" 
+          id="btn-submit-tax"
+          style="display: inline-flex; align-items: center; gap: 8px;"
+        >
+          <span>{{ "Save Changes" if tax and tax.id else "Save Tax Rule" }}</span>
+          <span class="htmx-indicator" id="modal-spinner" style="display: inline-block;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
