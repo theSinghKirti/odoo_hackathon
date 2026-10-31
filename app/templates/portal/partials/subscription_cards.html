@@ -1,0 +1,96 @@
+{% if subscriptions and subscriptions|length > 0 %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-5);">
+  {% for sub in subscriptions %}
+  <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border-top: 4px solid {% if sub.status == 'active' %}#10B981{% elif sub.status == 'paused' %}#F59E0B{% elif sub.status == 'closed' %}#94A3B8{% else %}#07998E{% endif %}; transition: transform 0.15s ease, box-shadow 0.15s ease;">
+    <div>
+      <!-- Top Card Row -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
+        <div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
+            {{ sub.subscription_number or ('SUB-' ~ sub.id) }}
+          </span>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--navy); margin-top: 2px;">
+            {{ sub.plan.name if sub.plan else (sub.name or 'Recurring Plan') }}
+          </h3>
+        </div>
+        
+        <!-- Status Badge -->
+        {% if sub.status == 'active' %}
+          <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-weight: 600; font-size: 0.75rem;">Active</span>
+        {% elif sub.status == 'paused' %}
+          <span class="badge" style="background-color: var(--pastel-yellow); color: #B45309; font-weight: 600; font-size: 0.75rem;">Paused</span>
+        {% elif sub.status == 'closed' %}
+          <span class="badge" style="background-color: #F1F5F9; color: #64748B; font-weight: 600; font-size: 0.75rem;">Closed</span>
+        {% elif sub.status == 'confirmed' %}
+          <span class="badge" style="background-color: #E6FFFA; color: #0D9488; font-weight: 600; font-size: 0.75rem;">Confirmed</span>
+        {% elif sub.status == 'quotation' %}
+          <span class="badge" style="background-color: var(--pastel-lavender); color: #7C3AED; font-weight: 600; font-size: 0.75rem;">Quotation</span>
+        {% else %}
+          <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7; font-weight: 600; font-size: 0.75rem;">{{ sub.status|capitalize }}</span>
+        {% endif %}
+      </div>
+
+      <!-- Pricing Row -->
+      <div style="padding: var(--space-3) 0; border-bottom: 1px solid var(--border); margin-bottom: var(--space-4);">
+        <div style="display: flex; align-items: baseline; gap: 4px;">
+          <span style="font-size: 1.4rem; font-weight: 800; color: var(--navy);">
+            ₹{{ "{:,.2f}".format(sub.recurring_total if sub.recurring_total is defined and sub.recurring_total else (sub.plan.price if sub.plan and sub.plan.price else (sub.total_amount if sub.total_amount else 0.0))) }}
+          </span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">
+            / {{ sub.plan.billing_interval if sub.plan and sub.plan.billing_interval else (sub.billing_interval or 'cycle') }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Details List -->
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem; margin-bottom: var(--space-4);">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-muted);">Start Date:</span>
+          <span style="color: var(--navy); font-weight: 500;">
+            {{ sub.start_date.strftime('%d %b %Y') if sub.start_date else 'N/A' }}
+          </span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-muted);">Next Billing Date:</span>
+          <span style="color: {% if sub.status == 'active' %}#0D9488{% else %}var(--navy){% endif %}; font-weight: 600;">
+            {{ sub.next_billing_date.strftime('%d %b %Y') if sub.next_billing_date else (sub.end_date.strftime('%d %b %Y') if sub.end_date else 'N/A') }}
+          </span>
+        </div>
+        {% if sub.plan and sub.plan.billing_period %}
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-muted);">Billing Term:</span>
+          <span style="color: var(--navy); font-weight: 500;">{{ sub.plan.billing_period|capitalize }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions Footer -->
+    <div style="padding-top: var(--space-3); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 0.75rem; color: var(--text-muted);">
+        {% if sub.allow_pause %}Pause enabled{% endif %}
+      </span>
+      <a href="/portal/subscriptions/{{ sub.id }}" class="btn btn-outline" style="font-size: 0.8rem; padding: 6px 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+        View Details
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: var(--space-10) var(--space-6);">
+  <div style="width: 56px; height: 56px; border-radius: 50%; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-4);">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+    </svg>
+  </div>
+  <h3 style="font-size: 1.15rem; color: var(--navy); margin-bottom: 6px;">No Subscriptions Found</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto var(--space-5);">
+    There are no subscriptions matching your current search or status filter.
+  </p>
+  <a href="/portal/subscriptions" class="btn btn-outline" style="font-size: 0.85rem;">Clear Filters</a>
+</div>
+{% endif %}

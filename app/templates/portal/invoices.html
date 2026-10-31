@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 
 {% block title %}My Invoices & Payments — Subly{% endblock %}
@@ -136,3 +137,81 @@ function openCheckoutModal(invId, invNum, amt) {
 </script>
 {% endblock %}
 
+=======
+{% extends "portal/layout.html" %}
+
+{% block title %}My Invoices — Customer Portal{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">My Invoices</span>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+  <div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <h1 style="font-size: 1.65rem; color: var(--navy); margin: 0;">My Invoices</h1>
+      <span class="badge" style="background-color: var(--pastel-lavender); color: #7C3AED; font-weight: 700; font-size: 0.8rem;">
+        {{ invoices|length if invoices else 0 }} Total
+      </span>
+    </div>
+    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;">
+      Access your payment receipts, view billing history, and pay open balances online.
+    </p>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card" style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <!-- Status Filter Pills -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="status-pills">
+      <a href="/portal/invoices" 
+         class="btn {% if not current_status or current_status == 'all' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        All Invoices
+      </a>
+      <a href="/portal/invoices?status=paid" 
+         class="btn {% if current_status == 'paid' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Paid
+      </a>
+      <a href="/portal/invoices?status=confirmed" 
+         class="btn {% if current_status == 'confirmed' or current_status == 'posted' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Awaiting Payment
+      </a>
+      <a href="/portal/invoices?status=overdue" 
+         class="btn {% if current_status == 'overdue' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Overdue
+      </a>
+    </div>
+
+    <!-- Live Search Input -->
+    <div style="min-width: 260px;">
+      <input type="text" 
+             name="q" 
+             class="form-input" 
+             placeholder="Search invoice number..." 
+             value="{{ search_query or '' }}"
+             hx-get="/web/portal/invoices" 
+             hx-trigger="keyup changed delay:300ms" 
+             hx-target="#invoice-table-container"
+             hx-include="[name='status_filter']"
+             style="font-size: 0.85rem; padding: 7px 12px; border-radius: 20px;">
+      <input type="hidden" name="status_filter" value="{{ current_status or 'all' }}">
+    </div>
+  </div>
+</div>
+
+<!-- Invoices Table Container -->
+<div id="invoice-table-container">
+  {% include "portal/partials/invoice_table.html" %}
+</div>
+
+{% endblock %}
+>>>>>>> 3142da8243728a593878a1296f45ce8010b3525b

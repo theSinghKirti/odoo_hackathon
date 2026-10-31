@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 
 {% block title %}My Subscriptions — Subly{% endblock %}
@@ -83,3 +84,81 @@
 </div>
 {% endblock %}
 
+=======
+{% extends "portal/layout.html" %}
+
+{% block title %}My Subscriptions — Customer Portal{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">My Subscriptions</span>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+  <div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <h1 style="font-size: 1.65rem; color: var(--navy); margin: 0;">My Subscriptions</h1>
+      <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7; font-weight: 700; font-size: 0.8rem;">
+        {{ subscriptions|length if subscriptions else 0 }} Total
+      </span>
+    </div>
+    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;">
+      View and manage your active recurring subscriptions, renewal dates, and plan statuses.
+    </p>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card" style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <!-- Status Filter Pills -->
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="status-pills">
+      <a href="/portal/subscriptions" 
+         class="btn {% if not current_status or current_status == 'all' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        All Subscriptions
+      </a>
+      <a href="/portal/subscriptions?status=active" 
+         class="btn {% if current_status == 'active' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Active
+      </a>
+      <a href="/portal/subscriptions?status=paused" 
+         class="btn {% if current_status == 'paused' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Paused
+      </a>
+      <a href="/portal/subscriptions?status=closed" 
+         class="btn {% if current_status == 'closed' %}btn-teal{% else %}btn-outline{% endif %}" 
+         style="padding: 6px 14px; font-size: 0.8rem; border-radius: 20px;">
+        Closed
+      </a>
+    </div>
+
+    <!-- Search Input -->
+    <div style="min-width: 260px;">
+      <input type="text" 
+             name="q" 
+             class="form-input" 
+             placeholder="Search subscriptions..." 
+             value="{{ search_query or '' }}"
+             hx-get="/web/portal/subscriptions" 
+             hx-trigger="keyup changed delay:300ms" 
+             hx-target="#subscription-cards-container"
+             hx-include="[name='status_filter']"
+             style="font-size: 0.85rem; padding: 7px 12px; border-radius: 20px;">
+      <input type="hidden" name="status_filter" value="{{ current_status or 'all' }}">
+    </div>
+  </div>
+</div>
+
+<!-- Subscriptions Grid Container -->
+<div id="subscription-cards-container">
+  {% include "portal/partials/subscription_cards.html" %}
+</div>
+
+{% endblock %}
+>>>>>>> 3142da8243728a593878a1296f45ce8010b3525b

@@ -1,0 +1,220 @@
+{% extends "portal/layout.html" %}
+
+{% block title %}Dashboard — Customer Portal{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">Overview</span>
+{% endblock %}
+
+{% block content %}
+<!-- Welcome Banner Card -->
+<div class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+        <span class="badge badge-active">Client Self-Service</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Account Active</span>
+      </div>
+      <h1 style="font-size: 1.65rem; color: var(--navy); margin-bottom: 4px;">
+        Welcome Back, {{ customer.name if customer else (user.full_name or 'Client') }}
+      </h1>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        Manage your subscriptions, invoices and payments in one place.
+      </p>
+    </div>
+
+    <div style="display: flex; gap: var(--space-3);">
+      <a href="/portal/invoices" class="btn btn-outline" style="font-size: 0.85rem;">
+        Pay Open Invoices
+      </a>
+      <a href="/portal/subscriptions" class="btn btn-teal" style="font-size: 0.85rem; font-weight: 600;">
+        My Subscriptions
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Four Summary Metric Cards -->
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: var(--space-6);">
+  <!-- Card 1: Active Subscriptions -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Active Subscriptions</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.active_subscriptions if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Live active recurring services</p>
+  </div>
+
+  <!-- Card 2: Upcoming Renewals -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Upcoming Renewals</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.upcoming_renewals if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Due in next 30 days</p>
+  </div>
+
+  <!-- Card 3: Pending Invoices -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Pending Payments</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-yellow); color: #D97706; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ stats.pending_invoices if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Awaiting settlement</p>
+  </div>
+
+  <!-- Card 4: Total Outstanding Balance -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Total Outstanding</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-pink); color: #DC2626; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color: {% if stats and stats.total_outstanding > 0 %}#DC2626{% else %}var(--navy){% endif %};">
+      ₹{{ "{:,.2f}".format(stats.total_outstanding if stats else 0.0) }}
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Unpaid invoice balance</p>
+  </div>
+</div>
+
+<!-- Two-Column Grid: Upcoming Renewals & Recent Invoices -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6);" class="detail-two-col">
+  
+  <!-- Section 1: Upcoming Renewals -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #FAFCFE;">
+      <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin: 0;">Upcoming Renewals</h3>
+      <a href="/portal/subscriptions" style="font-size: 0.8rem; color: var(--primary-teal); text-decoration: none; font-weight: 600;">View All &rsaquo;</a>
+    </div>
+
+    <div class="table-container" style="border: none;">
+      <table class="table" style="margin-bottom: 0;">
+        <thead>
+          <tr>
+            <th>Subscription #</th>
+            <th>Plan</th>
+            <th>Next Bill Date</th>
+            <th style="text-align: right;">Amount</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if upcoming_subscriptions and upcoming_subscriptions|length > 0 %}
+            {% for sub in upcoming_subscriptions %}
+            <tr>
+              <td>
+                <a href="/portal/subscriptions/{{ sub.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none;">
+                  {{ sub.subscription_number }}
+                </a>
+              </td>
+              <td>
+                <div style="font-weight: 500; font-size: 0.85rem;">{{ sub.plan.name if sub.plan else (sub.plan_name or 'Custom Plan') }}</div>
+              </td>
+              <td style="font-size: 0.85rem; color: var(--text-secondary);">
+                {{ sub.next_billing_date.strftime('%d %b %Y') if sub.next_billing_date and sub.next_billing_date.strftime is defined else sub.next_billing_date }}
+              </td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">
+                ₹{{ "{:,.2f}".format(sub.total_amount or 0.0) }}
+              </td>
+              <td style="text-align: right;">
+                <a href="/portal/subscriptions/{{ sub.id }}" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.75rem;">
+                  View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-6); font-size: 0.85rem;">
+                No recurring subscriptions due for renewal in the near future.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 2: Recent Invoices -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background-color: #FAFCFE;">
+      <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin: 0;">Recent Invoices</h3>
+      <a href="/portal/invoices" style="font-size: 0.8rem; color: var(--primary-teal); text-decoration: none; font-weight: 600;">View All &rsaquo;</a>
+    </div>
+
+    <div class="table-container" style="border: none;">
+      <table class="table" style="margin-bottom: 0;">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Due Date</th>
+            <th style="text-align: right;">Amount</th>
+            <th>Status</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if recent_invoices and recent_invoices|length > 0 %}
+            {% for inv in recent_invoices %}
+            {% set st = inv.status.value if inv.status.value is defined else inv.status %}
+            <tr>
+              <td>
+                <a href="/portal/invoices/{{ inv.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none;">
+                  {{ inv.invoice_number }}
+                </a>
+              </td>
+              <td style="font-size: 0.85rem; color: var(--text-secondary);">
+                {{ inv.due_date.strftime('%d %b %Y') if inv.due_date and inv.due_date.strftime is defined else inv.due_date }}
+              </td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">
+                ₹{{ "{:,.2f}".format(inv.total_amount or 0.0) }}
+              </td>
+              <td>
+                <span class="badge {% if st == 'paid' %}badge-active{% elif st == 'confirmed' %}badge-quotation{% else %}badge-draft{% endif %}" style="font-size: 0.7rem;">
+                  {{ st|upper }}
+                </span>
+              </td>
+              <td style="text-align: right;">
+                <a href="/portal/invoices/{{ inv.id }}" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.75rem;">
+                  View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-6); font-size: 0.85rem;">
+                No billing invoice records found for your account.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

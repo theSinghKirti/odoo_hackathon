@@ -1,0 +1,278 @@
+{% extends "portal/layout.html" %}
+
+{% block title %}Invoice {{ invoice.invoice_number or invoice.id }} — Customer Portal{% endblock %}
+
+{% block extra_head %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="/static/js/payment.js"></script>
+<style>
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    .portal-sidebar, .portal-topbar, .no-print, .btn, #razorpay-checkout-card {
+      display: none !important;
+    }
+    .portal-content {
+      padding: 0 !important;
+      max-width: 100% !important;
+    }
+    .printable-invoice-card {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <a href="/portal/invoices" style="color: var(--text-muted); text-decoration: none;">My Invoices</a>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">{{ invoice.invoice_number or ('INV-' ~ invoice.id) }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Top Action Toolbar (No Print) -->
+<div class="no-print" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
+  <a href="/portal/invoices" style="font-size: 0.85rem; color: var(--primary-teal); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Back to My Invoices
+  </a>
+
+  <div style="display: flex; gap: var(--space-3); align-items: center;">
+    <button type="button" onclick="window.print()" class="btn btn-outline" style="font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"/>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+        <rect x="6" y="14" width="12" height="8"/>
+      </svg>
+      Print / PDF
+    </button>
+
+    {% if invoice.amount_due and invoice.amount_due > 0 and invoice.status != 'draft' and invoice.status != 'cancelled' %}
+    <a href="#pay" class="btn btn-teal" style="font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+        <line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+      Pay Online ₹{{ "{:,.2f}".format(invoice.amount_due) }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Formal Printable Tax Invoice Sheet -->
+<div class="card printable-invoice-card" style="padding: var(--space-8); margin-bottom: var(--space-6);">
+  
+  <!-- Header: Issuer vs Customer -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-6); border-bottom: 2px solid var(--border); padding-bottom: var(--space-6); margin-bottom: var(--space-6);">
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div style="width: 28px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, var(--primary-teal), var(--navy)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem;">S</div>
+        <span style="font-size: 1.3rem; font-weight: 800; color: var(--navy); letter-spacing: -0.5px;">
+          {{ user.organization.name if user and user.organization else 'Subly Solutions' }}
+        </span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">
+        Multi-tenant Subscription Billing<br>
+        billing@{{ user.organization.slug if user and user.organization else 'subly' }}.cloud
+      </p>
+    </div>
+
+    <!-- Invoice Reference & Dates -->
+    <div style="text-align: right;">
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 4px;">
+        <h2 style="font-size: 1.4rem; color: var(--navy); margin: 0; font-weight: 800;">
+          {{ invoice.invoice_number or ('INV-' ~ invoice.id) }}
+        </h2>
+        {% if invoice.status == 'paid' %}
+          <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-weight: 700;">PAID</span>
+        {% elif invoice.status == 'overdue' %}
+          <span class="badge" style="background-color: var(--pastel-pink); color: #DC2626; font-weight: 700;">OVERDUE</span>
+        {% elif invoice.status == 'draft' %}
+          <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7; font-weight: 700;">DRAFT</span>
+        {% else %}
+          <span class="badge" style="background-color: var(--pastel-lavender); color: #7C3AED; font-weight: 700;">AWAITING PAYMENT</span>
+        {% endif %}
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+        <div><strong>Date:</strong> {{ invoice.invoice_date.strftime('%d %B %Y') if invoice.invoice_date else 'N/A' }}</div>
+        <div><strong>Due Date:</strong> {{ invoice.due_date.strftime('%d %B %Y') if invoice.due_date else 'On Receipt' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Billed To Section -->
+  <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6); padding: var(--space-4); background-color: #F8FAFC; border-radius: 8px;">
+    <div>
+      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Billed To</span>
+      <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin: 2px 0 4px;">
+        {{ invoice.customer.name if invoice.customer else (user.full_name or 'Valued Customer') }}
+      </h3>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">
+        {{ invoice.customer.email if invoice.customer else user.email }}<br>
+        {% if invoice.customer and invoice.customer.phone %}Phone: {{ invoice.customer.phone }}<br>{% endif %}
+        {% if invoice.customer and invoice.customer.address %}{{ invoice.customer.address }}{% endif %}
+      </p>
+    </div>
+
+    {% if invoice.subscription %}
+    <div style="text-align: right;">
+      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Subscription Details</span>
+      <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--navy); margin: 2px 0 2px;">
+        {{ invoice.subscription.plan.name if invoice.subscription.plan else invoice.subscription.subscription_number }}
+      </h4>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+        Ref: <a href="/portal/subscriptions/{{ invoice.subscription.id }}" style="color: var(--primary-teal); text-decoration: none;">{{ invoice.subscription.subscription_number }}</a>
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Line Items Table -->
+  <div class="table-container" style="margin-bottom: var(--space-6);">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: right;">Tax</th>
+          <th style="text-align: right;">Total Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if invoice.lines and invoice.lines|length > 0 %}
+          {% for line in invoice.lines %}
+          <tr>
+            <td>
+              <strong style="color: var(--navy); font-size: 0.9rem;">
+                {{ line.product.name if line.product else (line.description or 'Subscription Charge') }}
+              </strong>
+              {% if line.description and line.product and line.description != line.product.name %}
+              <div style="font-size: 0.75rem; color: var(--text-muted);">{{ line.description }}</div>
+              {% endif %}
+            </td>
+            <td style="text-align: center; font-size: 0.9rem;">{{ line.quantity }}</td>
+            <td style="text-align: right; font-size: 0.9rem; color: var(--text-secondary);">₹{{ "{:,.2f}".format(line.unit_price) }}</td>
+            <td style="text-align: right; font-size: 0.9rem; color: var(--text-muted);">₹{{ "{:,.2f}".format(line.tax_amount if line.tax_amount else 0.0) }}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--navy); font-size: 0.9rem;">₹{{ "{:,.2f}".format(line.subtotal if line.subtotal is defined else (line.quantity * line.unit_price)) }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td>
+              <strong style="color: var(--navy); font-size: 0.9rem;">Plan Subscription Fee</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Periodic billing charge</div>
+            </td>
+            <td style="text-align: center; font-size: 0.9rem;">1</td>
+            <td style="text-align: right; font-size: 0.9rem; color: var(--text-secondary);">₹{{ "{:,.2f}".format(invoice.subtotal if invoice.subtotal else invoice.total_amount) }}</td>
+            <td style="text-align: right; font-size: 0.9rem; color: var(--text-muted);">₹{{ "{:,.2f}".format(invoice.tax_amount if invoice.tax_amount else 0.0) }}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--navy); font-size: 0.9rem;">₹{{ "{:,.2f}".format(invoice.total_amount) }}</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totals Summary Grid -->
+  <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-6);">
+    <div style="width: 320px; max-width: 100%;">
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; color: var(--text-secondary);">
+        <span>Subtotal:</span>
+        <span style="font-weight: 600; color: var(--navy);">₹{{ "{:,.2f}".format(invoice.subtotal if invoice.subtotal is defined else invoice.total_amount) }}</span>
+      </div>
+
+      {% if invoice.discount_amount and invoice.discount_amount > 0 %}
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; color: #059669;">
+        <span>Discount:</span>
+        <span style="font-weight: 600;">-₹{{ "{:,.2f}".format(invoice.discount_amount) }}</span>
+      </div>
+      {% endif %}
+
+      {% if invoice.tax_amount and invoice.tax_amount > 0 %}
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; color: var(--text-secondary);">
+        <span>Applicable Taxes:</span>
+        <span style="font-weight: 600; color: var(--navy);">+₹{{ "{:,.2f}".format(invoice.tax_amount) }}</span>
+      </div>
+      {% endif %}
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid var(--border); font-size: 1.1rem; font-weight: 800; color: var(--navy);">
+        <span>Total:</span>
+        <span>₹{{ "{:,.2f}".format(invoice.total_amount) }}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; color: #059669;">
+        <span>Amount Paid:</span>
+        <span style="font-weight: 600;">₹{{ "{:,.2f}".format(invoice.amount_paid if invoice.amount_paid is defined else 0.0) }}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 8px 12px; background-color: {% if invoice.amount_due and invoice.amount_due > 0 %}var(--pastel-pink){% else %}var(--pastel-mint){% endif %}; border-radius: 6px; font-size: 1rem; font-weight: 800; color: {% if invoice.amount_due and invoice.amount_due > 0 %}#DC2626{% else %}#047857{% endif %}; margin-top: 6px;">
+        <span>Balance Due:</span>
+        <span>₹{{ "{:,.2f}".format(invoice.amount_due if invoice.amount_due is defined else 0.0) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Terms & Notes -->
+  <div style="border-top: 1px solid var(--border); padding-top: var(--space-4); font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+    <strong>Payment Notes & Terms:</strong> Payment is due according to the agreed terms. Online payments are confirmed instantly via Razorpay payment gateway.
+  </div>
+
+</div>
+
+<!-- Payment History Section -->
+{% if invoice.payments and invoice.payments|length > 0 %}
+<div class="card no-print" style="margin-bottom: var(--space-6);">
+  <h2 style="font-size: 1.1rem; color: var(--navy); margin-bottom: var(--space-4);">Payment Receipts</h2>
+  <div class="table-container">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Receipt / Ref</th>
+          <th>Payment Date</th>
+          <th>Method</th>
+          <th style="text-align: right;">Amount Paid</th>
+          <th style="text-align: center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in invoice.payments %}
+        <tr>
+          <td style="font-weight: 600; color: var(--navy); font-size: 0.85rem;">
+            {{ p.reference or ('PAY-' ~ p.id) }}
+          </td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">
+            {{ p.payment_date.strftime('%d %b %Y, %H:%M') if p.payment_date else 'N/A' }}
+          </td>
+          <td style="font-size: 0.85rem; color: var(--navy); text-transform: uppercase;">
+            {{ p.payment_method }}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: #047857; font-size: 0.85rem;">
+            ₹{{ "{:,.2f}".format(p.amount) }}
+          </td>
+          <td style="text-align: center;">
+            <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-size: 0.75rem;">Verified</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Online Razorpay Checkout Section (Anchor #pay) -->
+<div id="pay" class="no-print">
+  {% if invoice.status != 'paid' and invoice.amount_due and invoice.amount_due > 0 and invoice.status != 'cancelled' %}
+    {% include "staff/partials/razorpay_checkout.html" %}
+  {% endif %}
+</div>
+
+{% endblock %}

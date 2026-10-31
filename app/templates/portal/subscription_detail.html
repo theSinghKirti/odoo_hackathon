@@ -1,0 +1,350 @@
+{% extends "portal/layout.html" %}
+
+{% block title %}Subscription {{ subscription.subscription_number or subscription.id }} — Customer Portal{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <a href="/portal/subscriptions" style="color: var(--text-muted); text-decoration: none;">My Subscriptions</a>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">{{ subscription.subscription_number or ('SUB-' ~ subscription.id) }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Back to Subscriptions Link -->
+<div style="margin-bottom: var(--space-4);">
+  <a href="/portal/subscriptions" style="font-size: 0.85rem; color: var(--primary-teal); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 500;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Back to My Subscriptions
+  </a>
+</div>
+
+<!-- Subscription Header Card -->
+<div class="card" style="margin-bottom: var(--space-6);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">
+          {{ subscription.subscription_number or ('SUB-' ~ subscription.id) }}
+        </span>
+        {% if subscription.status == 'active' %}
+          <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-weight: 600;">Active</span>
+        {% elif subscription.status == 'paused' %}
+          <span class="badge" style="background-color: var(--pastel-yellow); color: #B45309; font-weight: 600;">Paused</span>
+        {% elif subscription.status == 'closed' %}
+          <span class="badge" style="background-color: #F1F5F9; color: #64748B; font-weight: 600;">Closed</span>
+        {% elif subscription.status == 'confirmed' %}
+          <span class="badge" style="background-color: #E6FFFA; color: #0D9488; font-weight: 600;">Confirmed</span>
+        {% else %}
+          <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7; font-weight: 600;">{{ subscription.status|capitalize }}</span>
+        {% endif %}
+      </div>
+      <h1 style="font-size: 1.65rem; color: var(--navy); margin: 0;">
+        {{ subscription.plan.name if subscription.plan else (subscription.name or 'Recurring Plan') }}
+      </h1>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+        {{ subscription.plan.description if subscription.plan and subscription.plan.description else 'Self-service recurring plan membership.' }}
+      </p>
+    </div>
+
+    <div style="text-align: right;">
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Recurring Rate</div>
+      <div style="font-size: 1.75rem; font-weight: 800; color: var(--navy); margin-top: 2px;">
+        ₹{{ "{:,.2f}".format(subscription.recurring_total if subscription.recurring_total is defined and subscription.recurring_total else (subscription.plan.price if subscription.plan and subscription.plan.price else (subscription.total_amount if subscription.total_amount else 0.0))) }}
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-secondary);">
+        billed per {{ subscription.plan.billing_interval if subscription.plan and subscription.plan.billing_interval else (subscription.billing_interval or 'cycle') }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid" style="grid-template-columns: 2fr 1fr; gap: var(--space-6);">
+  <!-- Left Column: Overview, Line Items & Invoices -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+    
+    <!-- Plan Details & Schedule Card -->
+    <div class="card">
+      <h2 style="font-size: 1.1rem; color: var(--navy); margin-bottom: var(--space-4);">Billing Schedule & Term</h2>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4);">
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Start Date</span>
+          <p style="font-size: 0.95rem; font-weight: 600; color: var(--navy); margin-top: 2px;">
+            {{ subscription.start_date.strftime('%d %B %Y') if subscription.start_date else 'N/A' }}
+          </p>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Next Billing Date</span>
+          <p style="font-size: 0.95rem; font-weight: 600; color: #0D9488; margin-top: 2px;">
+            {{ subscription.next_billing_date.strftime('%d %B %Y') if subscription.next_billing_date else (subscription.end_date.strftime('%d %B %Y') if subscription.end_date else 'N/A') }}
+          </p>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Billing Frequency</span>
+          <p style="font-size: 0.95rem; font-weight: 600; color: var(--navy); margin-top: 2px;">
+            {{ (subscription.plan.billing_interval if subscription.plan and subscription.plan.billing_interval else (subscription.billing_interval or 'Monthly'))|capitalize }}
+          </p>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Term Expiry</span>
+          <p style="font-size: 0.95rem; font-weight: 600; color: var(--navy); margin-top: 2px;">
+            {{ subscription.end_date.strftime('%d %B %Y') if subscription.end_date else 'Auto-renewing indefinitely' }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line Items & Add-ons Card -->
+    <div class="card">
+      <h2 style="font-size: 1.1rem; color: var(--navy); margin-bottom: var(--space-4);">Included Plan Items & Add-ons</h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item / Service</th>
+              <th style="text-align: center;">Quantity</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if subscription.lines and subscription.lines|length > 0 %}
+              {% for line in subscription.lines %}
+              <tr>
+                <td>
+                  <strong style="color: var(--navy); font-size: 0.9rem;">
+                    {{ line.product.name if line.product else (line.description or 'Recurring Service') }}
+                  </strong>
+                  {% if line.description and line.product and line.description != line.product.name %}
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">{{ line.description }}</div>
+                  {% endif %}
+                </td>
+                <td style="text-align: center; font-size: 0.9rem;">{{ line.quantity }}</td>
+                <td style="text-align: right; font-size: 0.9rem; color: var(--text-secondary);">₹{{ "{:,.2f}".format(line.unit_price) }}</td>
+                <td style="text-align: right; font-weight: 600; color: var(--navy);">₹{{ "{:,.2f}".format(line.subtotal if line.subtotal is defined else (line.quantity * line.unit_price)) }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>
+                  <strong style="color: var(--navy); font-size: 0.9rem;">{{ subscription.plan.name if subscription.plan else 'Base Subscription Service' }}</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">Standard membership package</div>
+                </td>
+                <td style="text-align: center; font-size: 0.9rem;">1</td>
+                <td style="text-align: right; font-size: 0.9rem; color: var(--text-secondary);">₹{{ "{:,.2f}".format(subscription.total_amount if subscription.total_amount else 0.0) }}</td>
+                <td style="text-align: right; font-weight: 600; color: var(--navy);">₹{{ "{:,.2f}".format(subscription.total_amount if subscription.total_amount else 0.0) }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Associated Invoices Card -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+        <h2 style="font-size: 1.1rem; color: var(--navy); margin: 0;">Subscription Invoices</h2>
+        <a href="/portal/invoices" style="font-size: 0.8rem; color: var(--primary-teal); text-decoration: none; font-weight: 600;">
+          All Invoices &rarr;
+        </a>
+      </div>
+      {% if subscription_invoices and subscription_invoices|length > 0 %}
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th style="text-align: right;">Amount</th>
+                <th style="text-align: center;">Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inv in subscription_invoices %}
+              <tr>
+                <td>
+                  <a href="/portal/invoices/{{ inv.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none;">
+                    {{ inv.invoice_number or ('INV-' ~ inv.id) }}
+                  </a>
+                </td>
+                <td style="font-size: 0.85rem; color: var(--text-secondary);">
+                  {{ inv.invoice_date.strftime('%d %b %Y') if inv.invoice_date else 'N/A' }}
+                </td>
+                <td style="text-align: right; font-weight: 700; color: var(--navy);">
+                  ₹{{ "{:,.2f}".format(inv.total_amount) }}
+                </td>
+                <td style="text-align: center;">
+                  {% if inv.status == 'paid' %}
+                    <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-size: 0.75rem;">Paid</span>
+                  {% elif inv.status == 'overdue' %}
+                    <span class="badge" style="background-color: var(--pastel-pink); color: #DC2626; font-size: 0.75rem;">Overdue</span>
+                  {% else %}
+                    <span class="badge" style="background-color: var(--pastel-lavender); color: #7C3AED; font-size: 0.75rem;">{{ inv.status|capitalize }}</span>
+                  {% endif %}
+                </td>
+                <td style="text-align: right;">
+                  <a href="/portal/invoices/{{ inv.id }}" class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;">
+                    View
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">No invoices generated for this subscription yet.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right Column: Self-Service Actions & Policy Rules -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+    
+    <!-- Self-Service Actions Card -->
+    <div class="card" style="border-top: 4px solid var(--primary-teal);">
+      <h2 style="font-size: 1.1rem; color: var(--navy); margin-bottom: var(--space-3);">Subscription Management</h2>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-4);">
+        Self-service options based on your plan terms:
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        
+        <!-- Pause / Resume Action -->
+        {% if subscription.status == 'active' %}
+          {% if subscription.allow_pause %}
+            <button type="button" onclick="document.getElementById('pause-modal').style.display='flex'" class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.85rem; color: #B45309; border-color: #FCD34D;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                <rect x="6" y="4" width="4" height="16"/>
+                <rect x="14" y="4" width="4" height="16"/>
+              </svg>
+              Pause Subscription
+            </button>
+          {% else %}
+            <div style="padding: 10px 12px; background-color: #F8FAFC; border: 1px dashed var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Pause is disabled by your plan configuration.
+            </div>
+          {% endif %}
+        {% elif subscription.status == 'paused' %}
+          <form method="POST" action="/portal/subscriptions/{{ subscription.id }}/resume" style="width: 100%;">
+            <button type="submit" class="btn btn-teal" style="width: 100%; justify-content: center; font-size: 0.85rem; font-weight: 600;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Resume Subscription
+            </button>
+          </form>
+        {% endif %}
+
+        <!-- Cancellation Action -->
+        {% if subscription.status != 'closed' %}
+          {% if subscription.allow_early_close or subscription.status == 'quotation' %}
+            <button type="button" onclick="document.getElementById('cancel-modal').style.display='flex'" class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.85rem; color: #DC2626; border-color: #FECDD3;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              Cancel Subscription
+            </button>
+          {% else %}
+            <div style="padding: 10px 12px; background-color: #F8FAFC; border: 1px dashed var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Early cancellation is restricted for this term. Your plan will conclude at term expiry.
+            </div>
+          {% endif %}
+        {% else %}
+          <div style="padding: 12px; background-color: #F1F5F9; border-radius: 8px; font-size: 0.85rem; color: #64748B; text-align: center;">
+            This subscription is closed.
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Plan Policy Rules Card -->
+    <div class="card" style="background-color: #FBFDFF;">
+      <h3 style="font-size: 0.95rem; color: var(--navy); margin-bottom: var(--space-3);">Plan Governance Terms</h3>
+      <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+        <li style="display: flex; align-items: flex-start; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; color: {% if subscription.auto_close_on_expiry %}#F59E0B{% else %}#10B981{% endif %};">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span><strong>Renewal:</strong> {{ 'Auto-closes on term expiry' if subscription.auto_close_on_expiry else 'Auto-renews at next billing date' }}</span>
+        </li>
+        <li style="display: flex; align-items: flex-start; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; color: {% if subscription.allow_pause %}#10B981{% else %}#94A3B8{% endif %};">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span><strong>Pause Allowed:</strong> {{ 'Yes (flexible hold)' if subscription.allow_pause else 'No (continuous cycle)' }}</span>
+        </li>
+        <li style="display: flex; align-items: flex-start; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top: 2px; color: {% if subscription.allow_early_close %}#10B981{% else %}#94A3B8{% endif %};">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span><strong>Early Cancellation:</strong> {{ 'Self-service allowed' if subscription.allow_early_close else 'Locked until term ends' }}</span>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Pause Confirmation -->
+<div id="pause-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(7, 20, 63, 0.45); backdrop-filter: blur(2px); z-index: 100; align-items: center; justify-content: center;">
+  <div class="card" style="max-width: 440px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+    <h3 style="font-size: 1.2rem; color: var(--navy); margin-bottom: 8px;">Pause Subscription?</h3>
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-4);">
+      Pausing temporarily halts recurring billing and holds service access until you resume.
+    </p>
+    <form method="POST" action="/portal/subscriptions/{{ subscription.id }}/pause">
+      <div class="form-group" style="margin-bottom: var(--space-4);">
+        <label class="form-label" for="pause-reason">Reason for Pause (Optional)</label>
+        <textarea id="pause-reason" name="reason" class="form-input" rows="2" placeholder="e.g. Vacation, seasonal break..."></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" onclick="document.getElementById('pause-modal').style.display='none'" class="btn btn-outline" style="font-size: 0.85rem;">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-teal" style="font-size: 0.85rem; font-weight: 600; background-color: #D97706; border-color: #D97706;">
+          Confirm Pause
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Cancel Confirmation -->
+<div id="cancel-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(7, 20, 63, 0.45); backdrop-filter: blur(2px); z-index: 100; align-items: center; justify-content: center;">
+  <div class="card" style="max-width: 440px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+    <h3 style="font-size: 1.2rem; color: #DC2626; margin-bottom: 8px;">Cancel Subscription?</h3>
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: var(--space-4);">
+      Are you sure you want to cancel <strong>{{ subscription.plan.name if subscription.plan else subscription.subscription_number }}</strong>? This action will terminate active billing.
+    </p>
+    <form method="POST" action="/portal/subscriptions/{{ subscription.id }}/cancel">
+      <div class="form-group" style="margin-bottom: var(--space-4);">
+        <label class="form-label" for="cancel-reason">Reason for Cancellation</label>
+        <textarea id="cancel-reason" name="reason" class="form-input" rows="2" placeholder="Tell us why you are canceling..." required></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" onclick="document.getElementById('cancel-modal').style.display='none'" class="btn btn-outline" style="font-size: 0.85rem;">
+          Keep Subscription
+        </button>
+        <button type="submit" class="btn" style="font-size: 0.85rem; font-weight: 600; background-color: #DC2626; color: white; border: none; border-radius: 8px; padding: 8px 16px;">
+          Confirm Cancellation
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
