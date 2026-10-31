@@ -1340,3 +1340,122 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* --------------------------------------------------------------------------
+   14. SUBSCRIPTION PLANS & LIFECYCLE POLICIES (F3)
+   -------------------------------------------------------------------------- */
+.badge-daily {
+  background-color: var(--pastel-yellow);
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.badge-weekly {
+  background-color: var(--pastel-pink);
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+.badge-monthly {
+  background-color: var(--pastel-sky);
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
+}
+
+.badge-yearly {
+  background-color: var(--pastel-lavender);
+  color: #6B21A8;
+  border: 1px solid #E9D5FF;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.plan-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: var(--transition);
+  position: relative;
+}
+
+.plan-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: #CBD5E1;
+  transform: translateY(-2px);
+}
+
+.plan-price-block {
+  margin: var(--space-3) 0 var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.plan-price-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.1;
+}
+
+.plan-price-period {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.policy-chips-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: var(--space-3) 0;
+  padding: 10px;
+  background: #F8FAFD;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.policy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.725rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.policy-chip.enabled {
+  background-color: var(--pastel-mint);
+  color: var(--success-text);
+  border: 1px solid #A7F3D0;
+}
+
+.policy-chip.disabled {
+  background-color: #F1F5F9;
+  color: #94A3B8;
+  border: 1px solid #E2E8F0;
+  opacity: 0.75;
+}
+
+.policy-toggle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #F8FAFD;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}

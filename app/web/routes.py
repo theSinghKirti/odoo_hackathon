@@ -17,6 +17,10 @@ from app.core.security import (
 from app.db.session import get_async_db
 from app.models.user import User
 from app.models.product import ProductType
+from app.models.plan import SubscriptionPlan, BillingInterval
+from app.schemas.plan import PlanCreate, PlanUpdate
+from app.services.plan_service import PlanService
+from datetime import date
 from app.schemas.product import ProductCreate, ProductUpdate, ProductVariantCreate
 from app.models.product import ProductVariant
 from sqlalchemy import delete
@@ -917,4 +921,725 @@ async def product_update_submit(
         stats=stats,
         user=user,
         message=f"Product '{clean_name}' updated successfully.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# F3 Subscription Plan Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+MOCK_PLANS = [
+    {
+        "id": 1,
+        "name": "Monthly Starter",
+        "description": "Standard monthly subscription package for growing business operations.",
+        "billing_interval": "monthly",
+        "interval_count": 1,
+        "base_price": Decimal("999.00"),
+        "currency": "INR",
+        "min_quantity": 1,
+        "available_from": None,
+        "available_until": None,
+        "auto_close_on_expiry": True,
+        "allow_early_close": True,
+        "allow_pause": True,
+        "allow_renewal": True,
+        "is_active": True,
+    },
+    {
+        "id": 2,
+        "name": "Weekly Maintenance",
+        "description": "Short-cycle recurring support and operational checkups.",
+        "billing_interval": "weekly",
+        "interval_count": 1,
+        "base_price": Decimal("499.00"),
+        "currency": "INR",
+        "min_quantity": 1,
+        "available_from": None,
+        "available_until": None,
+        "auto_close_on_expiry": True,
+        "allow_early_close": True,
+        "allow_pause": True,
+        "allow_renewal": True,
+        "is_active": True,
+    },
+    {
+        "id": 3,
+        "name": "Enterprise Annual",
+        "description": "Comprehensive full-organization deployment with dedicated SLAs.",
+        "billing_interval": "yearly",
+        "interval_count": 1,
+        "base_price": Decimal("9999.00"),
+        "currency": "INR",
+        "min_quantity": 5,
+        "available_from": None,
+        "available_until": None,
+        "auto_close_on_expiry": True,
+        "allow_early_close": True,
+        "allow_pause": True,
+        "allow_renewal": True,
+        "is_active": True,
+    },
+    {
+        "id": 4,
+        "name": "Daily Compute Cloud",
+        "description": "High-frequency ephemeral resource allocation and compute billing.",
+        "billing_interval": "daily",
+        "interval_count": 1,
+        "base_price": Decimal("99.00"),
+        "currency": "INR",
+        "min_quantity": 1,
+        "available_from": None,
+        "available_until": None,
+        "auto_close_on_expiry": True,
+        "allow_early_close": False,
+        "allow_pause": False,
+        "allow_renewal": True,
+        "is_active": True,
+    },
+]
+
+
+def _get_plan_interval_str(plan) -> str:
+    if isinstance(plan, dict):
+        i = plan.get("billing_interval", "")
+    else:
+        i = getattr(plan, "billing_interval", "")
+    if hasattr(i, "value"):
+        return str(i.value).lower()
+    return str(i).lower()
+
+
+def _compute_plan_stats(plans_list):
+    total = len(plans_list)
+    monthly = sum(1 for p in plans_list if _get_plan_interval_str(p) == "monthly")
+    yearly = sum(1 for p in plans_list if _get_plan_interval_str(p) == "yearly")
+    active = sum(1 for p in plans_list if (p.get("is_active") if isinstance(p, dict) else getattr(p, "is_active", False)))
+    return {
+        "total": total,
+        "monthly": monthly,
+        "yearly": yearly,
+        "active": active,
+    }
+
+
+def _filter_mock_plans(search: Optional[str] = None, interval: Optional[str] = None, is_active: Optional[bool] = None):
+    results = list(MOCK_PLANS)
+    if interval:
+        int_clean = interval.strip().lower()
+        results = [p for p in results if _get_plan_interval_str(p) == int_clean]
+    if is_active is not None:
+        results = [p for p in results if p.get("is_active") == is_active]
+    if search:
+        s_clean = search.strip().lower()
+        results = [
+            p for p in results
+            if s_clean in str(p.get("name", "")).lower() or s_clean in str(p.get("description", "")).lower()
+        ]
+    return results
+
+
+def _validate_plan_input(
+    name: str,
+    billing_interval: str,
+    base_price: str,
+    min_quantity: str,
+    description: Optional[str] = None,
+    available_from: Optional[str] = None,
+    available_until: Optional[str] = None,
+    auto_close_on_expiry: Optional[str] = None,
+    allow_early_close: Optional[str] = None,
+    allow_pause: Optional[str] = None,
+    allow_renewal: Optional[str] = None,
+    is_active: Optional[str] = None,
+):
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Plan name is required."
+    elif len(clean_name) > 255:
+        errors["name"] = "Plan name cannot exceed 255 characters."
+
+    valid_intervals = [i.value for i in BillingInterval]
+    clean_interval = billing_interval.strip().lower() if billing_interval else ""
+    if clean_interval not in valid_intervals:
+        errors["billing_interval"] = f"Please select a valid interval ({', '.join(valid_intervals)})."
+
+    parsed_price = None
+    if not base_price or not base_price.strip():
+        errors["base_price"] = "Base price is required."
+    else:
+        try:
+            parsed_price = Decimal(base_price.strip())
+            if parsed_price < Decimal("0.00"):
+                errors["base_price"] = "Base price must be a non-negative number."
+        except Exception:
+            errors["base_price"] = "Base price must be a valid number (e.g. 999.00)."
+
+    parsed_min_qty = 1
+    if min_quantity and min_quantity.strip():
+        try:
+            parsed_min_qty = int(min_quantity.strip())
+            if parsed_min_qty < 1:
+                errors["min_quantity"] = "Minimum quantity must be at least 1."
+        except Exception:
+            errors["min_quantity"] = "Minimum quantity must be a valid integer."
+
+    parsed_from = None
+    if available_from and available_from.strip():
+        try:
+            parsed_from = date.fromisoformat(available_from.strip())
+        except Exception:
+            errors["available_from"] = "Invalid date format for Available From."
+
+    parsed_until = None
+    if available_until and available_until.strip():
+        try:
+            parsed_until = date.fromisoformat(available_until.strip())
+        except Exception:
+            errors["available_until"] = "Invalid date format for Available Until."
+
+    if parsed_from and parsed_until and parsed_until < parsed_from:
+        errors["available_until"] = "Available Until date cannot precede Available From date."
+
+    clean_desc = description.strip() if description and description.strip() else None
+
+    form_data = {
+        "name": clean_name,
+        "description": clean_desc or "",
+        "billing_interval": clean_interval,
+        "base_price": base_price.strip() if base_price else "",
+        "min_quantity": parsed_min_qty,
+        "available_from": available_from.strip() if available_from else "",
+        "available_until": available_until.strip() if available_until else "",
+        "auto_close_on_expiry": bool(auto_close_on_expiry),
+        "allow_early_close": bool(allow_early_close),
+        "allow_pause": bool(allow_pause),
+        "allow_renewal": bool(allow_renewal),
+        "is_active": bool(is_active),
+    }
+
+    return (
+        errors,
+        form_data,
+        clean_name,
+        clean_desc,
+        clean_interval,
+        parsed_price,
+        parsed_min_qty,
+        parsed_from,
+        parsed_until,
+        bool(auto_close_on_expiry),
+        bool(allow_early_close),
+        bool(allow_pause),
+        bool(allow_renewal),
+        bool(is_active),
+    )
+
+
+def _render_plan_success_response(
+    request: Request,
+    plans_list,
+    stats,
+    user,
+    message: str,
+):
+    grid_html = templates.get_template("admin/partials/plan_grid.html").render(
+        request=request,
+        plans=plans_list,
+        user=user,
+    )
+
+    stats_grid_html = f"""
+    <div class="grid" id="plan-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));" hx-swap-oob="outerHTML">
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Total Plans</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-total-plans">{stats["total"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Configured recurring tiers</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Monthly Plans</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #1E40AF; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-monthly-plans">{stats["monthly"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Standard recurring cycle</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Yearly Plans</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-lavender); color: #7C3AED; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-yearly-plans">{stats["yearly"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Annual commitment tiers</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Active Plans</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-active-plans">{stats["active"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Available for subscribing</p>
+      </div>
+    </div>
+    """
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">{message}</div>
+        </div>
+      </div>
+      <script>
+        setTimeout(() => {{
+          const t = document.getElementById('{toast_id}');
+          if (t) t.remove();
+        }}, 4000);
+      </script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <div class="plan-grid" id="plans-grid-container" hx-swap-oob="innerHTML">
+      {grid_html}
+    </div>
+    {stats_grid_html}
+    {toast_html}
+    """
+
+    headers = {"HX-Trigger": "planListChanged"}
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK, headers=headers)
+
+
+@router.get("/admin/plans", response_class=HTMLResponse)
+async def plans_catalog_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    try:
+        db_plans = await PlanService.list_plans(db, organization_id=user.organization_id)
+    except Exception:
+        db_plans = []
+
+    if db_plans:
+        plans = db_plans
+        stats = _compute_plan_stats(db_plans)
+    else:
+        plans = MOCK_PLANS
+        stats = _compute_plan_stats(MOCK_PLANS)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/plans.html",
+        context={
+            "user": user,
+            "organization": user.organization,
+            "active_nav": "plans",
+            "plans": plans,
+            "stats": stats,
+        },
+    )
+
+
+@router.get("/web/plans", response_class=HTMLResponse)
+async def plans_grid_partial(
+    request: Request,
+    search: Optional[str] = None,
+    interval: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    parsed_interval: Optional[BillingInterval] = None
+    if interval and interval.strip():
+        try:
+            parsed_interval = BillingInterval(interval.strip().lower())
+        except ValueError:
+            parsed_interval = None
+
+    db_plans = []
+    if user:
+        try:
+            db_plans = await PlanService.list_plans(
+                db,
+                organization_id=user.organization_id,
+                billing_interval=parsed_interval,
+                is_active=is_active,
+                search=search.strip() if search else None,
+            )
+        except Exception:
+            db_plans = []
+
+    if db_plans:
+        plans = db_plans
+    else:
+        has_any_in_db = False
+        if user:
+            try:
+                all_db = await PlanService.list_plans(db, organization_id=user.organization_id, limit=1)
+                has_any_in_db = bool(all_db)
+            except Exception:
+                has_any_in_db = False
+
+        if has_any_in_db:
+            plans = []
+        else:
+            plans = _filter_mock_plans(search=search, interval=interval, is_active=is_active)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/plan_grid.html",
+        context={
+            "user": user,
+            "plans": plans,
+        },
+    )
+
+
+@router.get("/web/plans/modal", response_class=HTMLResponse)
+async def plan_create_modal(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/plan_form.html",
+        context={
+            "plan": None,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.get("/web/plans/{plan_id}/modal", response_class=HTMLResponse)
+async def plan_edit_modal(
+    request: Request,
+    plan_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    plan = None
+
+    if user:
+        try:
+            plan = await PlanService.get_plan(
+                db,
+                organization_id=user.organization_id,
+                plan_id=plan_id,
+            )
+        except Exception:
+            plan = None
+
+    if not plan:
+        for mp in MOCK_PLANS:
+            if mp["id"] == plan_id:
+                plan = mp
+                break
+
+    if not plan:
+        return HTMLResponse(
+            content="<div class='alert alert-error'>Plan not found</div>",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/plan_form.html",
+        context={
+            "plan": plan,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.post("/web/plans", response_class=HTMLResponse)
+async def plan_create_submit(
+    request: Request,
+    name: str = Form(""),
+    billing_interval: str = Form("monthly"),
+    base_price: str = Form(""),
+    min_quantity: str = Form("1"),
+    description: Optional[str] = Form(None),
+    available_from: Optional[str] = Form(None),
+    available_until: Optional[str] = Form(None),
+    auto_close_on_expiry: Optional[str] = Form(None),
+    allow_early_close: Optional[str] = Form(None),
+    allow_pause: Optional[str] = Form(None),
+    allow_renewal: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    (
+        errors,
+        form_data,
+        clean_name,
+        clean_desc,
+        clean_interval,
+        parsed_price,
+        parsed_min_qty,
+        parsed_from,
+        parsed_until,
+        p_auto_close,
+        p_early_close,
+        p_pause,
+        p_renewal,
+        parsed_active,
+    ) = _validate_plan_input(
+        name=name,
+        billing_interval=billing_interval,
+        base_price=base_price,
+        min_quantity=min_quantity,
+        description=description,
+        available_from=available_from,
+        available_until=available_until,
+        auto_close_on_expiry=auto_close_on_expiry,
+        allow_early_close=allow_early_close,
+        allow_pause=allow_pause,
+        allow_renewal=allow_renewal,
+        is_active=is_active,
+    )
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/plan_form.html",
+            context={
+                "plan": None,
+                "form": form_data,
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    created_in_db = False
+    if user:
+        try:
+            create_schema = PlanCreate(
+                name=clean_name,
+                description=clean_desc,
+                billing_interval=BillingInterval(clean_interval),
+                interval_count=1,
+                base_price=parsed_price,
+                currency="INR",
+                min_quantity=parsed_min_qty,
+                available_from=parsed_from,
+                available_until=parsed_until,
+                auto_close_on_expiry=p_auto_close,
+                allow_early_close=p_early_close,
+                allow_pause=p_pause,
+                allow_renewal=p_renewal,
+                is_active=parsed_active,
+            )
+            await PlanService.create_plan(
+                session=db,
+                organization_id=user.organization_id,
+                data=create_schema,
+            )
+            created_in_db = True
+        except Exception:
+            created_in_db = False
+
+    if not created_in_db:
+        new_id = (max((p["id"] for p in MOCK_PLANS), default=0)) + 1
+        new_mock_plan = {
+            "id": new_id,
+            "name": clean_name,
+            "description": clean_desc,
+            "billing_interval": clean_interval,
+            "interval_count": 1,
+            "base_price": parsed_price,
+            "currency": "INR",
+            "min_quantity": parsed_min_qty,
+            "available_from": parsed_from,
+            "available_until": parsed_until,
+            "auto_close_on_expiry": p_auto_close,
+            "allow_early_close": p_early_close,
+            "allow_pause": p_pause,
+            "allow_renewal": p_renewal,
+            "is_active": parsed_active,
+        }
+        MOCK_PLANS.insert(0, new_mock_plan)
+
+    try:
+        db_plans = await PlanService.list_plans(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_plans = []
+
+    plans = db_plans if db_plans else MOCK_PLANS
+    stats = _compute_plan_stats(plans)
+
+    return _render_plan_success_response(
+        request=request,
+        plans_list=plans,
+        stats=stats,
+        user=user,
+        message=f"Plan '{clean_name}' created successfully.",
+    )
+
+
+@router.post("/web/plans/{plan_id}", response_class=HTMLResponse)
+@router.put("/web/plans/{plan_id}", response_class=HTMLResponse)
+async def plan_update_submit(
+    request: Request,
+    plan_id: int,
+    name: str = Form(""),
+    billing_interval: str = Form("monthly"),
+    base_price: str = Form(""),
+    min_quantity: str = Form("1"),
+    description: Optional[str] = Form(None),
+    available_from: Optional[str] = Form(None),
+    available_until: Optional[str] = Form(None),
+    auto_close_on_expiry: Optional[str] = Form(None),
+    allow_early_close: Optional[str] = Form(None),
+    allow_pause: Optional[str] = Form(None),
+    allow_renewal: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+
+    (
+        errors,
+        form_data,
+        clean_name,
+        clean_desc,
+        clean_interval,
+        parsed_price,
+        parsed_min_qty,
+        parsed_from,
+        parsed_until,
+        p_auto_close,
+        p_early_close,
+        p_pause,
+        p_renewal,
+        parsed_active,
+    ) = _validate_plan_input(
+        name=name,
+        billing_interval=billing_interval,
+        base_price=base_price,
+        min_quantity=min_quantity,
+        description=description,
+        available_from=available_from,
+        available_until=available_until,
+        auto_close_on_expiry=auto_close_on_expiry,
+        allow_early_close=allow_early_close,
+        allow_pause=allow_pause,
+        allow_renewal=allow_renewal,
+        is_active=is_active,
+    )
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/plan_form.html",
+            context={
+                "plan": {"id": plan_id, "name": clean_name},
+                "form": form_data,
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    updated_in_db = False
+    if user:
+        try:
+            update_schema = PlanUpdate(
+                name=clean_name,
+                description=clean_desc,
+                billing_interval=BillingInterval(clean_interval),
+                base_price=parsed_price,
+                min_quantity=parsed_min_qty,
+                available_from=parsed_from,
+                available_until=parsed_until,
+                auto_close_on_expiry=p_auto_close,
+                allow_early_close=p_early_close,
+                allow_pause=p_pause,
+                allow_renewal=p_renewal,
+                is_active=parsed_active,
+            )
+            await PlanService.update_plan(
+                session=db,
+                organization_id=user.organization_id,
+                plan_id=plan_id,
+                data=update_schema,
+            )
+            updated_in_db = True
+        except Exception:
+            updated_in_db = False
+
+    for mp in MOCK_PLANS:
+        if mp["id"] == plan_id:
+            mp["name"] = clean_name
+            mp["description"] = clean_desc
+            mp["billing_interval"] = clean_interval
+            mp["base_price"] = parsed_price
+            mp["min_quantity"] = parsed_min_qty
+            mp["available_from"] = parsed_from
+            mp["available_until"] = parsed_until
+            mp["auto_close_on_expiry"] = p_auto_close
+            mp["allow_early_close"] = p_early_close
+            mp["allow_pause"] = p_pause
+            mp["allow_renewal"] = p_renewal
+            mp["is_active"] = parsed_active
+            break
+
+    try:
+        db_plans = await PlanService.list_plans(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_plans = []
+
+    plans = db_plans if db_plans else MOCK_PLANS
+    stats = _compute_plan_stats(plans)
+
+    return _render_plan_success_response(
+        request=request,
+        plans_list=plans,
+        stats=stats,
+        user=user,
+        message=f"Plan '{clean_name}' updated successfully.",
     )

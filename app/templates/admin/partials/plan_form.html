@@ -1,0 +1,296 @@
+<div class="modal-backdrop" id="plan-modal-backdrop" onclick="if (event.target === this) closeModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="max-width: 680px;">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-title" class="modal-title">
+          {{ "Edit Subscription Plan" if plan and plan.id else "Create New Plan" }}
+        </h2>
+        <p class="modal-subtitle">
+          {{ "Update billing frequencies and lifecycle rules." if plan and plan.id else "Configure a recurring subscription billing plan for your customers." }}
+        </p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeModal();" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form 
+      id="plan-form"
+      hx-post="{{ '/web/plans/' ~ plan.id if plan and plan.id else '/web/plans' }}"
+      hx-target="#plan-modal-backdrop"
+      hx-swap="outerHTML"
+      hx-indicator="#modal-spinner"
+    >
+      <div class="modal-body">
+        
+        {% if errors and errors._global %}
+          <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+            {{ errors._global }}
+          </div>
+        {% endif %}
+
+        <!-- Section 1: Basic Information -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin-bottom: 12px; font-weight: 700;">
+          Basic Information
+        </h4>
+
+        <div class="form-grid-2">
+          <!-- Row 1: Plan Name (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="plan-name" class="form-label">
+              Plan Name <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <input 
+              type="text" 
+              name="name" 
+              id="plan-name" 
+              class="form-input {% if errors and errors.name %}is-invalid{% endif %}" 
+              placeholder="e.g. Monthly Starter, Enterprise Annual" 
+              value="{{ form.name if form and form.name is defined else (plan.name if plan else '') }}" 
+              required
+            />
+            {% if errors and errors.name %}
+              <div class="form-error">{{ errors.name }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 2 Col 1: Billing Interval -->
+          <div class="form-group">
+            <label for="plan-interval" class="form-label">
+              Billing Interval <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            {% set selected_interval = form.billing_interval if form and form.billing_interval is defined else (plan.billing_interval.value if (plan and plan.billing_interval and plan.billing_interval.value is defined) else (plan.billing_interval if plan else 'monthly')) %}
+            <select 
+              name="billing_interval" 
+              id="plan-interval" 
+              class="form-select {% if errors and errors.billing_interval %}is-invalid{% endif %}" 
+              required
+            >
+              <option value="daily" {% if selected_interval|lower == 'daily' %}selected{% endif %}>Daily</option>
+              <option value="weekly" {% if selected_interval|lower == 'weekly' %}selected{% endif %}>Weekly</option>
+              <option value="monthly" {% if selected_interval|lower == 'monthly' %}selected{% endif %}>Monthly</option>
+              <option value="yearly" {% if selected_interval|lower == 'yearly' %}selected{% endif %}>Yearly</option>
+            </select>
+            {% if errors and errors.billing_interval %}
+              <div class="form-error">{{ errors.billing_interval }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 2 Col 2: Base Price (INR) -->
+          <div class="form-group">
+            <label for="plan-price" class="form-label">
+              Base Price (INR) <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol">₹</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                name="base_price" 
+                id="plan-price" 
+                class="form-input {% if errors and errors.base_price %}is-invalid{% endif %}" 
+                placeholder="0.00" 
+                value="{{ form.base_price if form and form.base_price is defined else (plan.base_price if plan else '') }}" 
+                required
+              />
+            </div>
+            {% if errors and errors.base_price %}
+              <div class="form-error">{{ errors.base_price }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 3 Col 1: Minimum Quantity -->
+          <div class="form-group">
+            <label for="plan-min-quantity" class="form-label">
+              Minimum Quantity <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <input 
+              type="number" 
+              min="1" 
+              name="min_quantity" 
+              id="plan-min-quantity" 
+              class="form-input {% if errors and errors.min_quantity %}is-invalid{% endif %}" 
+              placeholder="1" 
+              value="{{ form.min_quantity if form and form.min_quantity is defined else (plan.min_quantity if plan else 1) }}" 
+              required
+            />
+            {% if errors and errors.min_quantity %}
+              <div class="form-error">{{ errors.min_quantity }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 3 Col 2: Plan Status Toggle -->
+          <div class="form-group">
+            <label class="form-label">Plan Status</label>
+            {% set is_act = form.is_active if form and form.is_active is defined else (plan.is_active if plan and plan.is_active is defined else True) %}
+            <div class="toggle-container">
+              <label class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  name="is_active" 
+                  id="plan-is-active" 
+                  value="true" 
+                  {% if is_act %}checked{% endif %}
+                  onchange="document.getElementById('plan-status-label').innerText = this.checked ? 'Active' : 'Inactive';"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="plan-status-label">
+                {{ "Active" if is_act else "Inactive" }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Row 4: Description (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="plan-description" class="form-label">
+              Description <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <textarea 
+              name="description" 
+              id="plan-description" 
+              class="form-textarea {% if errors and errors.description %}is-invalid{% endif %}" 
+              rows="2" 
+              placeholder="Provide plan overview, target audience, or usage guidelines"
+            >{{ form.description if form and form.description is defined else (plan.description if plan and plan.description else '') }}</textarea>
+            {% if errors and errors.description %}
+              <div class="form-error">{{ errors.description }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Section 2: Availability Window -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin: 18px 0 12px; font-weight: 700;">
+          Availability Window
+        </h4>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="plan-available-from" class="form-label">
+              Available From <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <input 
+              type="date" 
+              name="available_from" 
+              id="plan-available-from" 
+              class="form-input {% if errors and errors.available_from %}is-invalid{% endif %}" 
+              value="{{ form.available_from if form and form.available_from is defined else (plan.available_from if plan and plan.available_from else '') }}"
+            />
+            {% if errors and errors.available_from %}
+              <div class="form-error">{{ errors.available_from }}</div>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label for="plan-available-until" class="form-label">
+              Available Until <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <input 
+              type="date" 
+              name="available_until" 
+              id="plan-available-until" 
+              class="form-input {% if errors and errors.available_until %}is-invalid{% endif %}" 
+              value="{{ form.available_until if form and form.available_until is defined else (plan.available_until if plan and plan.available_until else '') }}"
+            />
+            {% if errors and errors.available_until %}
+              <div class="form-error">{{ errors.available_until }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Section 3: Lifecycle Policies -->
+        <h4 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--navy); margin: 18px 0 12px; font-weight: 700;">
+          Lifecycle Policies
+        </h4>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Policy 1: Auto Close on Expiry -->
+          {% set p1 = form.auto_close_on_expiry if form and form.auto_close_on_expiry is defined else (plan.auto_close_on_expiry if plan and plan.auto_close_on_expiry is defined else True) %}
+          <div class="policy-toggle-item">
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy);">Auto Close on Expiry</div>
+              <div style="font-size: 0.775rem; color: var(--text-secondary);">Automatically terminate subscription when reaching end date.</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" name="auto_close_on_expiry" value="true" {% if p1 %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Policy 2: Allow Early Close -->
+          {% set p2 = form.allow_early_close if form and form.allow_early_close is defined else (plan.allow_early_close if plan and plan.allow_early_close is defined else True) %}
+          <div class="policy-toggle-item">
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy);">Allow Early Close</div>
+              <div style="font-size: 0.775rem; color: var(--text-secondary);">Customer or staff can cancel subscription before renewal cycle ends.</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" name="allow_early_close" value="true" {% if p2 %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Policy 3: Allow Pause -->
+          {% set p3 = form.allow_pause if form and form.allow_pause is defined else (plan.allow_pause if plan and plan.allow_pause is defined else True) %}
+          <div class="policy-toggle-item">
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy);">Allow Pause</div>
+              <div style="font-size: 0.775rem; color: var(--text-secondary);">Permit temporary pause and resume of subscription services.</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" name="allow_pause" value="true" {% if p3 %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Policy 4: Allow Renewal -->
+          {% set p4 = form.allow_renewal if form and form.allow_renewal is defined else (plan.allow_renewal if plan and plan.allow_renewal is defined else True) %}
+          <div class="policy-toggle-item">
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy);">Allow Renewal</div>
+              <div style="font-size: 0.775rem; color: var(--text-secondary);">Allow manual or automated renewal for subsequent billing terms.</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" name="allow_renewal" value="true" {% if p4 %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-outline" 
+          onclick="closeModal();"
+        >
+          Cancel
+        </button>
+
+        <button 
+          type="submit" 
+          class="btn btn-teal" 
+          id="btn-submit-plan"
+          style="display: inline-flex; align-items: center; gap: 8px;"
+        >
+          <span>{{ "Save Changes" if plan and plan.id else "Create Plan" }}</span>
+          <span class="htmx-indicator" id="modal-spinner" style="display: inline-block;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
