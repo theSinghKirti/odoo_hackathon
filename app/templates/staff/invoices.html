@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices — Subly{% endblock %}
+
+{% block breadcrumb %}
+<div style="display: flex; align-items: center; gap: 8px;">
+  <span>Workspace</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">Invoices</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+        <span class="badge badge-admin">Billing & Receivables</span>
+        <span class="badge badge-active" id="total-invoice-badge">{{ stats.total if stats else invoices|length }} Invoices Issued</span>
+      </div>
+      <h1 style="font-size: 1.5rem; color: var(--navy); margin-bottom: 4px;">
+        Invoices
+      </h1>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        Manage customer invoices, payment status and outstanding balances.
+      </p>
+    </div>
+
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+      <a 
+        href="/staff/subscriptions" 
+        class="btn btn-outline"
+        style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500;"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        <span>Manage Subscriptions</span>
+      </a>
+
+      <a 
+        href="/staff/quotations" 
+        class="btn btn-teal"
+        style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600;"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>+ Quotations & Sales</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Statistic Cards -->
+<div class="grid" id="invoice-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: var(--space-6);">
+  <!-- Card 1: Total Invoices -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Total Invoices</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-total-inv">{{ stats.total if stats else invoices|length }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Total billing records</p>
+  </div>
+
+  <!-- Card 2: Draft Invoices -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Draft Invoices</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-yellow); color: #D97706; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-draft-inv">{{ stats.draft if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Unconfirmed drafts</p>
+  </div>
+
+  <!-- Card 3: Paid Invoices -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Paid Invoices</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-paid-inv">{{ stats.paid if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Settled accounts</p>
+  </div>
+
+  <!-- Card 4: Overdue Invoices -->
+  <div class="stat-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="stat-label">Overdue Invoices</div>
+      <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-pink); color: #991B1B; display: flex; align-items: center; justify-content: center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-value" id="stat-overdue-inv" style="color: #DC2626;">{{ stats.overdue if stats else 0 }}</div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">Payment past due date</p>
+  </div>
+</div>
+
+<!-- Filters & Search Toolbar -->
+<div class="card" style="margin-bottom: var(--space-6); padding: var(--space-4);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    
+    <!-- Status Filter Pills -->
+    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;" id="invoice-status-filters">
+      <button 
+        type="button" 
+        class="filter-pill active" 
+        data-filter="all"
+        hx-get="/web/invoices?status=all"
+        hx-target="#invoices-table-container"
+        hx-include="#inv-search"
+        onclick="setActiveFilter(this)"
+      >
+        All
+      </button>
+      <button 
+        type="button" 
+        class="filter-pill" 
+        data-filter="draft"
+        hx-get="/web/invoices?status=draft"
+        hx-target="#invoices-table-container"
+        hx-include="#inv-search"
+        onclick="setActiveFilter(this)"
+      >
+        Draft
+      </button>
+      <button 
+        type="button" 
+        class="filter-pill" 
+        data-filter="confirmed"
+        hx-get="/web/invoices?status=confirmed"
+        hx-target="#invoices-table-container"
+        hx-include="#inv-search"
+        onclick="setActiveFilter(this)"
+      >
+        Confirmed
+      </button>
+      <button 
+        type="button" 
+        class="filter-pill" 
+        data-filter="paid"
+        hx-get="/web/invoices?status=paid"
+        hx-target="#invoices-table-container"
+        hx-include="#inv-search"
+        onclick="setActiveFilter(this)"
+      >
+        Paid
+      </button>
+      <button 
+        type="button" 
+        class="filter-pill" 
+        data-filter="overdue"
+        hx-get="/web/invoices?status=overdue"
+        hx-target="#invoices-table-container"
+        hx-include="#inv-search"
+        onclick="setActiveFilter(this)"
+      >
+        Overdue
+      </button>
+    </div>
+
+    <!-- Live Search Input -->
+    <div style="position: relative; width: 300px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input 
+        type="text" 
+        id="inv-search"
+        name="search"
+        class="form-input" 
+        placeholder="Search invoice # or customer..." 
+        style="padding-left: 36px;"
+        hx-get="/web/invoices"
+        hx-trigger="input changed delay:250ms, search"
+        hx-target="#invoices-table-container"
+        hx-include="#invoice-status-filters .active"
+      >
+    </div>
+
+  </div>
+</div>
+
+<!-- Invoices Table Container -->
+<div class="card" style="padding: 0; overflow: hidden;" id="invoices-table-container">
+  {% include "staff/partials/invoice_table.html" %}
+</div>
+
+<!-- Confirmation Modal Target Container -->
+<div id="modal-container"></div>
+
+<script>
+function setActiveFilter(btn) {
+  document.querySelectorAll('#invoice-status-filters .filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

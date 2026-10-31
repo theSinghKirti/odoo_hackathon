@@ -1,0 +1,35 @@
+{% set st = invoice.status.value if invoice.status.value is defined else invoice.status %}
+{% set is_overdue = (st != 'paid' and st != 'cancelled' and invoice.due_date and today and invoice.due_date < today) %}
+<div id="invoice-status-container" style="display: inline-flex; align-items: center; gap: 8px;">
+  {% if is_overdue %}
+    <span class="badge badge-overdue" style="font-size: 0.825rem; padding: 5px 12px; font-weight: 700;">
+      OVERDUE
+    </span>
+  {% elif st == 'paid' %}
+    <span class="badge badge-active" style="font-size: 0.825rem; padding: 5px 12px; font-weight: 700;">
+      PAID
+    </span>
+  {% elif st == 'confirmed' %}
+    <span class="badge badge-quotation" style="font-size: 0.825rem; padding: 5px 12px; font-weight: 700;">
+      CONFIRMED
+    </span>
+  {% elif st == 'cancelled' %}
+    <span class="badge badge-closed" style="font-size: 0.825rem; padding: 5px 12px; font-weight: 700;">
+      CANCELLED
+    </span>
+  {% else %}
+    <span class="badge badge-draft" style="font-size: 0.825rem; padding: 5px 12px; font-weight: 700;">
+      DRAFT
+    </span>
+  {% endif %}
+
+  {% if st == 'paid' %}
+    <span style="font-size: 0.8rem; color: #059669; font-weight: 500;">(Settled in Full)</span>
+  {% elif is_overdue %}
+    <span style="font-size: 0.8rem; color: #DC2626; font-weight: 600;">(Payment Past Due)</span>
+  {% elif st == 'confirmed' %}
+    <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 500;">
+      Due: {{ invoice.due_date.strftime('%d %b %Y') if invoice.due_date and invoice.due_date.strftime is defined else invoice.due_date }}
+    </span>
+  {% endif %}
+</div>

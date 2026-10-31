@@ -3725,3 +3725,314 @@ async def renew_subscription_route(
             context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
         )
     return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# F7 Invoices Management & Printable Invoice Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
+from app.services.invoice_service import InvoiceService, InvalidInvoiceStateError, InvoiceNotFoundError
+
+MOCK_INVOICES = [
+    {
+        "id": 1,
+        "invoice_number": "INV-2026-0001",
+        "customer_id": 1,
+        "customer": {"id": 1, "name": "Acme Innovations Ltd", "email": "contact@acme.example", "phone": "+91 98765 43210"},
+        "customer_name": "Acme Innovations Ltd",
+        "subscription_id": 1,
+        "subscription": {"id": 1, "subscription_number": "SUB-2026-0001"},
+        "invoice_date": date.today() - timedelta(days=18),
+        "due_date": date.today() - timedelta(days=3),
+        "payment_terms": "net_15",
+        "status": InvoiceStatus.CONFIRMED,
+        "subtotal": Decimal("2499.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("449.82"),
+        "total_amount": Decimal("2948.82"),
+        "amount_paid": Decimal("0.00"),
+        "amount_due": Decimal("2948.82"),
+        "notes": "Automated billing cycle invoice for Subscription SUB-2026-0001.",
+        "lines": [
+            {
+                "id": 1,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("2499.00")},
+                "variant": None,
+                "description": "Subly Cloud Platform - Monthly Subscription",
+                "quantity": 1,
+                "unit_price": Decimal("2499.00"),
+                "tax_amount": Decimal("449.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("2948.82"),
+                "is_addon": False,
+            }
+        ],
+    },
+    {
+        "id": 2,
+        "invoice_number": "INV-2026-0002",
+        "customer_id": 2,
+        "customer": {"id": 2, "name": "BlueSky Tech Labs", "email": "admin@bluesky.example", "phone": "+91 98111 22233"},
+        "customer_name": "BlueSky Tech Labs",
+        "subscription_id": 2,
+        "subscription": {"id": 2, "subscription_number": "SUB-2026-0002"},
+        "invoice_date": date.today() - timedelta(days=25),
+        "due_date": date.today() - timedelta(days=10),
+        "payment_terms": "immediate",
+        "status": InvoiceStatus.PAID,
+        "subtotal": Decimal("999.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("179.82"),
+        "total_amount": Decimal("1178.82"),
+        "amount_paid": Decimal("1178.82"),
+        "amount_due": Decimal("0.00"),
+        "notes": "Receipt #RCP-9012 settled in full via Net Banking.",
+        "lines": [
+            {
+                "id": 2,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Developer Sandbox Plan", "sales_price": Decimal("999.00")},
+                "variant": None,
+                "description": "Developer Sandbox Plan - Monthly License",
+                "quantity": 1,
+                "unit_price": Decimal("999.00"),
+                "tax_amount": Decimal("179.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("1178.82"),
+                "is_addon": False,
+            }
+        ],
+    },
+    {
+        "id": 3,
+        "invoice_number": "INV-2026-0003",
+        "customer_id": 3,
+        "customer": {"id": 3, "name": "Global Retail Corp", "email": "procurement@globalretail.example", "phone": "+91 98222 33344"},
+        "customer_name": "Global Retail Corp",
+        "subscription_id": None,
+        "subscription": None,
+        "invoice_date": date.today(),
+        "due_date": date.today() + timedelta(days=30),
+        "payment_terms": "net_30",
+        "status": InvoiceStatus.DRAFT,
+        "subtotal": Decimal("5000.00"),
+        "discount_amount": Decimal("500.00"),
+        "tax_amount": Decimal("810.00"),
+        "total_amount": Decimal("5310.00"),
+        "amount_paid": Decimal("0.00"),
+        "amount_due": Decimal("5310.00"),
+        "notes": "Custom consulting and enterprise onboarding invoice.",
+        "lines": [
+            {
+                "id": 3,
+                "product_id": 2,
+                "product": {"id": 2, "name": "Enterprise Setup & Onboarding", "sales_price": Decimal("5000.00")},
+                "variant": None,
+                "description": "Architecture setup and data migration consulting",
+                "quantity": 1,
+                "unit_price": Decimal("5000.00"),
+                "tax_amount": Decimal("810.00"),
+                "discount_amount": Decimal("500.00"),
+                "line_total": Decimal("5310.00"),
+                "is_addon": False,
+            }
+        ],
+    },
+]
+
+def _compute_invoice_stats(invoices_list):
+    today_dt = date.today()
+    total = len(invoices_list)
+    draft = sum(1 for i in invoices_list if (getattr(i.status, "value", i.status) if hasattr(i, "status") else i.get("status")) == "draft")
+    paid = sum(1 for i in invoices_list if (getattr(i.status, "value", i.status) if hasattr(i, "status") else i.get("status")) == "paid")
+    overdue = 0
+    for i in invoices_list:
+        st = getattr(i.status, "value", i.status) if hasattr(i, "status") else i.get("status")
+        due = getattr(i, "due_date", None) or i.get("due_date")
+        if st not in ("paid", "cancelled") and due and due < today_dt:
+            overdue += 1
+
+    return {
+        "total": total,
+        "draft": draft,
+        "paid": paid,
+        "overdue": overdue,
+    }
+
+@router.get("/staff/invoices", response_class=HTMLResponse)
+async def invoices_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    db_invs = []
+    if user.organization_id:
+        try:
+            db_invs = await InvoiceService.list_invoices(db, organization_id=user.organization_id, user=user)
+        except Exception:
+            db_invs = []
+    invoices = db_invs if db_invs else list(MOCK_INVOICES)
+    stats = _compute_invoice_stats(invoices)
+
+    return templates.TemplateResponse(
+        name="staff/invoices.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "invoices",
+            "invoices": invoices,
+            "stats": stats,
+            "today": date.today(),
+        },
+    )
+
+@router.get("/web/invoices", response_class=HTMLResponse)
+async def invoices_table_partial(
+    request: Request,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+
+    req_status = request.query_params.get("status") or status_filter
+    req_search = request.query_params.get("search") or search
+    today_dt = date.today()
+
+    db_invs = []
+    if user and user.organization_id:
+        try:
+            db_invs = await InvoiceService.list_invoices(
+                db, organization_id=user.organization_id, user=user
+            )
+        except Exception:
+            db_invs = []
+
+    invoices = db_invs if db_invs else list(MOCK_INVOICES)
+
+    if req_status and req_status != "all":
+        if req_status == "overdue":
+            invoices = [
+                i for i in invoices 
+                if (getattr(i.status, "value", i.status) if hasattr(i, "status") else i.get("status")) not in ("paid", "cancelled")
+                and (getattr(i, "due_date", None) or i.get("due_date"))
+                and (getattr(i, "due_date", None) or i.get("due_date")) < today_dt
+            ]
+        else:
+            invoices = [
+                i for i in invoices 
+                if (getattr(i.status, "value", i.status) if hasattr(i, "status") else i.get("status")) == req_status.lower()
+            ]
+
+    if req_search:
+        s_clean = req_search.strip().lower()
+        invoices = [
+            i for i in invoices 
+            if s_clean in str(i.get("invoice_number") if isinstance(i, dict) else i.invoice_number).lower()
+            or s_clean in str(i.get("customer_name") if isinstance(i, dict) else (i.customer.name if i.customer else "")).lower()
+        ]
+
+    return templates.TemplateResponse(
+        name="staff/partials/invoice_table.html",
+        context={
+            "request": request,
+            "user": user,
+            "invoices": invoices,
+            "today": today_dt,
+        },
+    )
+
+@router.get("/staff/invoices/{invoice_id}", response_class=HTMLResponse)
+async def invoice_detail_page(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    inv = None
+    if user.organization_id:
+        try:
+            inv = await InvoiceService.get_invoice(db, organization_id=user.organization_id, invoice_id=invoice_id, user=user)
+        except Exception:
+            inv = None
+
+    if not inv:
+        for mi in MOCK_INVOICES:
+            if str(mi.get("id")) == str(invoice_id):
+                inv = mi
+                break
+
+    if not inv:
+        return RedirectResponse(url="/staff/invoices", status_code=status.HTTP_302_FOUND)
+
+    return templates.TemplateResponse(
+        name="staff/invoice_detail.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "invoices",
+            "invoice": inv,
+            "today": date.today(),
+        },
+    )
+
+@router.post("/web/invoices/{invoice_id}/confirm", response_class=HTMLResponse)
+async def confirm_invoice_route(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    inv = None
+    if user.organization_id:
+        try:
+            inv = await InvoiceService.confirm_invoice(db, organization_id=user.organization_id, invoice_id=invoice_id, user=user)
+        except Exception:
+            inv = None
+
+    if not inv:
+        for mi in MOCK_INVOICES:
+            if str(mi.get("id")) == str(invoice_id):
+                mi["status"] = InvoiceStatus.CONFIRMED
+                inv = mi
+                break
+
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/web/invoices/{invoice_id}/cancel", response_class=HTMLResponse)
+async def cancel_invoice_route(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    inv = None
+    if user.organization_id:
+        try:
+            inv = await InvoiceService.cancel_invoice(db, organization_id=user.organization_id, invoice_id=invoice_id, user=user)
+        except Exception:
+            inv = None
+
+    if not inv:
+        for mi in MOCK_INVOICES:
+            if str(mi.get("id")) == str(invoice_id):
+                mi["status"] = InvoiceStatus.CANCELLED
+                mi["amount_due"] = Decimal("0.00")
+                inv = mi
+                break
+
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)

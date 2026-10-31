@@ -1734,3 +1734,30 @@ a:hover {
     height: calc(100% - 10px);
   }
 }
+
+
+/* ==========================================================================
+   Invoice Management & Printable Layout Styles (F7)
+   ========================================================================== */
+.badge-overdue {
+  background-color: var(--pastel-pink);
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+.invoice-sheet {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+@media print {
+  .invoice-sheet {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}

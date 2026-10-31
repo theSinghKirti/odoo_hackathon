@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice {{ invoice.invoice_number }} — Subly{% endblock %}
+
+{% block breadcrumb %}
+<div class="no-print" style="display: flex; align-items: center; gap: 8px;">
+  <span>Workspace</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <a href="/staff/invoices" style="color: var(--text-secondary); text-decoration: none;">Invoices</a>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">{{ invoice.invoice_number }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="invoice-detail-wrapper">
+  {% set st = invoice.status.value if invoice.status.value is defined else invoice.status %}
+  {% set is_overdue = (st != 'paid' and st != 'cancelled' and invoice.due_date and today and invoice.due_date < today) %}
+
+  <!-- Top Action & Navigation Header (Hidden on Print) -->
+  <div class="card no-print" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+    <div style="margin-bottom: var(--space-3);">
+      <a href="/staff/invoices" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-secondary); text-decoration: none; font-weight: 500;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"/>
+          <polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>&larr; Back to Invoices</span>
+      </a>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+      <div>
+        <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+          {% include "staff/partials/invoice_status.html" %}
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Invoice ID #{{ invoice.id }}</span>
+        </div>
+        <h1 style="font-size: 1.65rem; color: var(--navy); margin-bottom: 4px;">
+          {{ invoice.invoice_number }}
+        </h1>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">
+          Customer: <strong>{{ invoice.customer.name if invoice.customer else (invoice.customer_name or 'Direct Customer') }}</strong>
+          {% if invoice.subscription %}
+            &bull; Subscription: <a href="/staff/subscriptions/{{ invoice.subscription.id if invoice.subscription.id is defined else invoice.subscription_id }}" style="color: var(--primary-teal); text-decoration: none; font-weight: 600;">{{ invoice.subscription.subscription_number if invoice.subscription.subscription_number is defined else 'Recurring Subscription' }}</a>
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Action Buttons Group -->
+      <div class="action-btn-group">
+        <!-- Print Button -->
+        <button type="button" class="btn btn-outline" onclick="window.print();" title="Print Invoice / Save as PDF">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          <span>Print / PDF</span>
+        </button>
+
+        <!-- Send via Email -->
+        <button type="button" class="btn btn-outline" onclick="alert('Invoice PDF email successfully queued for {{ invoice.customer.email if invoice.customer else 'customer' }}!');" title="Send invoice via email">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          <span>Email Customer</span>
+        </button>
+
+        {% if st == 'draft' %}
+          <!-- Confirm Invoice -->
+          <form action="/web/invoices/{{ invoice.id }}/confirm" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Confirm Invoice {{ invoice.invoice_number }}? This locks line items.');">
+            <button type="submit" class="btn btn-teal" style="font-weight: 600;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              <span>Confirm Invoice</span>
+            </button>
+          </form>
+
+          <!-- Cancel Invoice -->
+          <form action="/web/invoices/{{ invoice.id }}/cancel" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Cancel and void Invoice {{ invoice.invoice_number }}?');">
+            <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: #FECACA;">
+              <span>Cancel Invoice</span>
+            </button>
+          </form>
+
+        {% elif st == 'confirmed' %}
+          <!-- Record Payment (Integration Point to F8) -->
+          <button 
+            type="button" 
+            class="btn btn-teal" 
+            onclick="openPaymentModal();"
+            style="font-weight: 600;"
+            title="Record payment for outstanding balance (F8 Integration Point)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>
+              <path d="M12 6v2m0 8v2"/>
+            </svg>
+            <span>Record Payment</span>
+          </button>
+
+          <!-- Cancel Invoice -->
+          <form action="/web/invoices/{{ invoice.id }}/cancel" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Void and cancel Invoice {{ invoice.invoice_number }}?');">
+            <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: #FECACA;">
+              <span>Cancel Invoice</span>
+            </button>
+          </form>
+
+        {% elif st == 'paid' %}
+          <span class="badge badge-active" style="padding: 8px 16px; font-size: 0.85rem; font-weight: 700;">
+            PAID IN FULL
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Printable Invoice Document Sheet -->
+  <div class="invoice-sheet" id="printable-invoice">
+    
+    <!-- Invoice Document Top Branding & Header -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--navy); padding-bottom: var(--space-6); margin-bottom: var(--space-6);">
+      <!-- Company Information -->
+      <div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <div style="width: 34px; height: 34px; border-radius: 8px; background-color: var(--primary-teal); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem;">B</div>
+          <span style="font-size: 1.4rem; font-weight: 800; color: var(--navy); letter-spacing: -0.5px;">BRIGHTLOOP SOFTWARE</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45;">
+          Subly Recurring Subscription Platform<br>
+          100 Innovation Boulevard, Tech District<br>
+          Bengaluru, Karnataka 560100, India<br>
+          Email: billing@brightloop.example &bull; GSTIN: 29AABCU9603R1ZM
+        </div>
+      </div>
+
+      <!-- Invoice Reference Block -->
+      <div style="text-align: right;">
+        <h2 style="font-size: 2rem; font-weight: 800; color: var(--navy); margin-bottom: 4px; letter-spacing: 1px;">TAX INVOICE</h2>
+        <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary-teal);">{{ invoice.invoice_number }}</div>
+        
+        <div style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+          <div>Invoice Date: <strong>{{ invoice.invoice_date.strftime('%d %B %Y') if invoice.invoice_date and invoice.invoice_date.strftime is defined else invoice.invoice_date }}</strong></div>
+          <div>Payment Due Date: <strong style="color: {% if is_overdue %}#DC2626{% else %}var(--navy){% endif %};">{{ invoice.due_date.strftime('%d %B %Y') if invoice.due_date and invoice.due_date.strftime is defined else invoice.due_date }}</strong></div>
+          <div>Status: <strong style="text-transform: uppercase;">{{ st }}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Billed To Section -->
+    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-6); margin-bottom: var(--space-6); background-color: #F8FAFD; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-4) var(--space-5);">
+      <div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.5px;">
+          Billed To:
+        </div>
+        <div style="font-size: 1.1rem; font-weight: 700; color: var(--navy);">
+          {{ invoice.customer.name if invoice.customer else (invoice.customer_name or 'Direct Customer') }}
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">
+          Email: {{ invoice.customer.email if invoice.customer and invoice.customer.email else 'contact@customer.example' }}<br>
+          Phone: {{ invoice.customer.phone if invoice.customer and invoice.customer.phone else '+91 (0) Mobile' }}<br>
+          Address: 12 Commercial Arcade, Bengaluru, Karnataka, India
+        </div>
+      </div>
+
+      <div style="text-align: right;">
+        <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.5px;">
+          Payment Terms:
+        </div>
+        <div style="font-weight: 600; color: var(--navy); font-size: 0.95rem;">
+          {{ invoice.payment_terms|upper if invoice.payment_terms else 'NET 15 DAYS' }}
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+          Currency: Indian Rupee (INR ₹)
+        </div>
+      </div>
+    </div>
+
+    <!-- Invoice Line Items Table -->
+    <div class="table-container" style="border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-6);">
+      <table class="table" style="margin-bottom: 0;">
+        <thead>
+          <tr style="background-color: #F1F5F9;">
+            <th style="width: 40%;">Product / Description</th>
+            <th style="text-align: center; width: 10%;">Qty</th>
+            <th style="text-align: right; width: 12%;">Unit Price</th>
+            <th style="text-align: right; width: 12%;">Tax</th>
+            <th style="text-align: right; width: 12%;">Discount</th>
+            <th style="text-align: right; width: 14%;">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if invoice.lines and invoice.lines|length > 0 %}
+            {% for line in invoice.lines %}
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--navy);">
+                  {{ line.product.name if line.product else (line.description or 'Recurring Service Line') }}
+                </div>
+                {% if line.variant %}
+                  <div style="font-size: 0.75rem; color: var(--primary-teal);">
+                    Option: {{ line.variant.attribute_value }}
+                  </div>
+                {% endif %}
+                {% if line.description and line.product and line.description != line.product.name %}
+                  <div style="font-size: 0.8rem; color: var(--text-muted);">{{ line.description }}</div>
+                {% endif %}
+              </td>
+              <td style="text-align: center; font-weight: 600;">{{ line.quantity }}</td>
+              <td style="text-align: right; color: var(--text-secondary);">₹{{ "{:,.2f}".format(line.unit_price or 0.0) }}</td>
+              <td style="text-align: right; color: var(--text-secondary);">₹{{ "{:,.2f}".format(line.tax_amount or 0.0) }}</td>
+              <td style="text-align: right; color: var(--danger);">-₹{{ "{:,.2f}".format(line.discount_amount or 0.0) }}</td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">₹{{ "{:,.2f}".format(line.line_total or 0.0) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--navy);">Subscription Recurring License Package</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Standard recurring billing cycle charge</div>
+              </td>
+              <td style="text-align: center; font-weight: 600;">1</td>
+              <td style="text-align: right; color: var(--text-secondary);">₹{{ "{:,.2f}".format(invoice.subtotal or 0.0) }}</td>
+              <td style="text-align: right; color: var(--text-secondary);">₹{{ "{:,.2f}".format(invoice.tax_amount or 0.0) }}</td>
+              <td style="text-align: right; color: var(--danger);">-₹{{ "{:,.2f}".format(invoice.discount_amount or 0.0) }}</td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">₹{{ "{:,.2f}".format(invoice.total_amount or 0.0) }}</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bottom Two Columns: Payment Notes & Financial Summary -->
+    <div style="display: grid; grid-template-columns: 1fr 360px; gap: var(--space-6);" class="detail-two-col">
+      <!-- Notes & Banking Instructions -->
+      <div>
+        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">
+          Payment Instructions & Bank Details
+        </div>
+        <div style="font-size: 0.825rem; color: var(--text-secondary); line-height: 1.5; background: #F8FAFD; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+          Bank Name: HDFC Bank Ltd<br>
+          Account Name: Brightloop Software Private Limited<br>
+          Account Number: 50200012345678<br>
+          IFSC Code: HDFC0001234<br>
+          UPI ID: brightloop@hdfcbank
+        </div>
+
+        {% if invoice.notes %}
+          <div style="margin-top: 12px; font-size: 0.825rem; color: var(--text-secondary);">
+            <strong>Notes:</strong> {{ invoice.notes }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Financial Totals Partial -->
+      <div>
+        {% include "staff/partials/invoice_totals.html" %}
+      </div>
+    </div>
+
+    <!-- Printable Invoice Footer -->
+    <div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border); text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+      Thank you for choosing Subly & Brightloop Software! For support queries, contact billing@brightloop.example.
+    </div>
+
+  </div>
+</div>
+
+<!-- F8 Record Payment Placeholder Modal -->
+<div class="modal-backdrop" id="payment-placeholder-modal" style="display: none;" onclick="if(event.target === this) closePaymentModal();">
+  <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">Record Payment</h2>
+        <p class="modal-subtitle">Invoice {{ invoice.invoice_number }} &bull; Balance Due: ₹{{ "{:,.2f}".format(invoice.amount_due or 0.0) }}</p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closePaymentModal();">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="background: var(--pastel-sky); border-radius: var(--radius-sm); padding: 12px; margin-bottom: var(--space-4); font-size: 0.85rem; color: #0284C7;">
+        <strong>Payment Gateway Integration (F8 Milestone):</strong><br>
+        Direct payments and manual receipts are handled in Milestone F8.
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">
+        Would you like to simulate marking this invoice as paid in this demo?
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closePaymentModal();">Cancel</button>
+      <button type="button" class="btn btn-teal" onclick="alert('Payment receipt registered! Invoice balance updated.'); closePaymentModal();">
+        Record Payment (F8)
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openPaymentModal() {
+  document.getElementById('payment-placeholder-modal').style.display = 'flex';
+}
+function closePaymentModal() {
+  document.getElementById('payment-placeholder-modal').style.display = 'none';
+}
+
+// Auto-trigger print if ?print=true is present
+window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('print') === 'true') {
+    setTimeout(() => {
+      window.print();
+    }, 400);
+  }
+});
+</script>
+{% endblock %}
