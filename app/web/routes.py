@@ -17,7 +17,9 @@ from app.core.security import (
 from app.db.session import get_async_db
 from app.models.user import User
 from app.models.product import ProductType
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.schemas.product import ProductCreate, ProductUpdate, ProductVariantCreate
+from app.models.product import ProductVariant
+from sqlalchemy import delete
 from datetime import datetime
 from app.services.product_service import ProductService
 from app.services.auth_service import (
@@ -667,13 +669,56 @@ async def product_create_submit(
     db: AsyncSession = Depends(get_async_db),
 ):
     """
-    Handles HTMX submission to create a new product.
+    Handles HTMX submission to create a new product, including dynamic variants.
     """
     user = await get_optional_user(request, db)
 
     errors, form_data, clean_name, clean_type, parsed_sales, parsed_cost, clean_notes, parsed_active = (
         _validate_product_input(name, product_type, sales_price, cost_price, notes, is_active)
     )
+
+    # Extract dynamic variant rows from form
+    raw_form = await request.form()
+    attr_names = raw_form.getlist("variant_attribute_name[]")
+    attr_values = raw_form.getlist("variant_attribute_value[]")
+    skus = raw_form.getlist("variant_sku[]")
+    price_extras = raw_form.getlist("variant_price_extra[]")
+
+    variants_list = []
+    variant_schemas = []
+    for i in range(len(attr_names)):
+        a_n = attr_names[i].strip() if i < len(attr_names) else ""
+        a_v = attr_values[i].strip() if i < len(attr_values) else ""
+        s_k = skus[i].strip() if i < len(skus) and skus[i] else None
+        p_e_raw = price_extras[i].strip() if i < len(price_extras) and price_extras[i] else "0.00"
+
+        if a_n and a_v:
+            try:
+                p_e = Decimal(p_e_raw)
+                if p_e < Decimal("0.00"):
+                    p_e = Decimal("0.00")
+            except Exception:
+                p_e = Decimal("0.00")
+
+            v_dict = {
+                "attribute_name": a_n,
+                "attribute_value": a_v,
+                "sku": s_k,
+                "price_extra": p_e,
+                "is_active": True,
+            }
+            variants_list.append(v_dict)
+            variant_schemas.append(
+                ProductVariantCreate(
+                    attribute_name=a_n,
+                    attribute_value=a_v,
+                    sku=s_k,
+                    price_extra=p_e,
+                    is_active=True,
+                )
+            )
+
+    form_data["variants"] = variants_list
 
     if errors:
         return templates.TemplateResponse(
@@ -698,6 +743,7 @@ async def product_create_submit(
                 cost_price=parsed_cost,
                 notes=clean_notes,
                 is_active=parsed_active,
+                variants=variant_schemas if variant_schemas else None,
             )
             await ProductService.create_product(
                 session=db,
@@ -719,7 +765,7 @@ async def product_create_submit(
             "cost_price": parsed_cost,
             "notes": clean_notes,
             "is_active": parsed_active,
-            "variants": [],
+            "variants": variants_list,
         }
         MOCK_PRODUCTS.insert(0, new_mock_item)
 
@@ -755,13 +801,46 @@ async def product_update_submit(
     db: AsyncSession = Depends(get_async_db),
 ):
     """
-    Handles HTMX submission to update an existing product.
+    Handles HTMX submission to update an existing product, including dynamic variants.
     """
     user = await get_optional_user(request, db)
 
     errors, form_data, clean_name, clean_type, parsed_sales, parsed_cost, clean_notes, parsed_active = (
         _validate_product_input(name, product_type, sales_price, cost_price, notes, is_active)
     )
+
+    # Extract dynamic variant rows from form
+    raw_form = await request.form()
+    attr_names = raw_form.getlist("variant_attribute_name[]")
+    attr_values = raw_form.getlist("variant_attribute_value[]")
+    skus = raw_form.getlist("variant_sku[]")
+    price_extras = raw_form.getlist("variant_price_extra[]")
+
+    variants_list = []
+    for i in range(len(attr_names)):
+        a_n = attr_names[i].strip() if i < len(attr_names) else ""
+        a_v = attr_values[i].strip() if i < len(attr_values) else ""
+        s_k = skus[i].strip() if i < len(skus) and skus[i] else None
+        p_e_raw = price_extras[i].strip() if i < len(price_extras) and price_extras[i] else "0.00"
+
+        if a_n and a_v:
+            try:
+                p_e = Decimal(p_e_raw)
+                if p_e < Decimal("0.00"):
+                    p_e = Decimal("0.00")
+            except Exception:
+                p_e = Decimal("0.00")
+
+            v_dict = {
+                "attribute_name": a_n,
+                "attribute_value": a_v,
+                "sku": s_k,
+                "price_extra": p_e,
+                "is_active": True,
+            }
+            variants_list.append(v_dict)
+
+    form_data["variants"] = variants_list
 
     if errors:
         return templates.TemplateResponse(
@@ -792,8 +871,24 @@ async def product_update_submit(
                 product_id=product_id,
                 data=update_schema,
             )
+            # Sync variants in database
+            await db.execute(delete(ProductVariant).where(ProductVariant.product_id == product_id))
+            for v in variants_list:
+                db.add(
+                    ProductVariant(
+                        organization_id=user.organization_id,
+                        product_id=product_id,
+                        attribute_name=v["attribute_name"],
+                        attribute_value=v["attribute_value"],
+                        sku=v["sku"],
+                        price_extra=v["price_extra"],
+                        is_active=True,
+                    )
+                )
+            await db.commit()
             updated_in_db = True
         except Exception:
+            await db.rollback()
             updated_in_db = False
 
     # Also update in MOCK_PRODUCTS if present
@@ -805,6 +900,7 @@ async def product_update_submit(
             mp["cost_price"] = parsed_cost
             mp["notes"] = clean_notes
             mp["is_active"] = parsed_active
+            mp["variants"] = variants_list
             break
 
     try:

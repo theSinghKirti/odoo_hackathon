@@ -1,0 +1,264 @@
+<div class="variant-manager-section" style="margin-top: var(--space-5); border-top: 1px solid var(--border-subtle); padding-top: var(--space-5);">
+  
+  <!-- Variant Section Header -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
+    <div>
+      <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 2px;">
+        Product Variants
+      </h3>
+      <p style="font-size: 0.825rem; color: var(--text-secondary);">
+        Add product attributes and configure additional pricing.
+      </p>
+    </div>
+    <button 
+      type="button" 
+      class="btn btn-outline btn-sm" 
+      id="btn-add-variant-row"
+      onclick="addVariantRow();"
+      style="display: inline-flex; align-items: center; gap: 6px; border-color: var(--primary-teal); color: var(--primary-teal); font-weight: 600;"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span>+ Add Variant</span>
+    </button>
+  </div>
+
+  <!-- Variant Rows Container -->
+  <div id="variants-list" style="display: flex; flex-direction: column; gap: 8px;">
+    {% set saved_variants = form.variants if form and form.variants is defined else (product.variants if product and product.variants is defined else []) %}
+    
+    {% if saved_variants and saved_variants|length > 0 %}
+      {% for v in saved_variants %}
+        <div class="variant-row" style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr 36px; gap: 8px; align-items: center; background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;">
+          <div>
+            <input 
+              type="text" 
+              name="variant_attribute_name[]" 
+              class="form-input form-input-sm" 
+              placeholder="Attribute (e.g. Brand)" 
+              value="{{ v.attribute_name if v.attribute_name is defined else (v['attribute_name'] if v is mapping else '') }}" 
+              required
+              style="margin-bottom: 0; font-size: 0.825rem;"
+            />
+          </div>
+          <div>
+            <input 
+              type="text" 
+              name="variant_attribute_value[]" 
+              class="form-input form-input-sm" 
+              placeholder="Value (e.g. Odoo)" 
+              value="{{ v.attribute_value if v.attribute_value is defined else (v['attribute_value'] if v is mapping else '') }}" 
+              required
+              style="margin-bottom: 0; font-size: 0.825rem;"
+            />
+          </div>
+          <div>
+            <input 
+              type="text" 
+              name="variant_sku[]" 
+              class="form-input form-input-sm" 
+              placeholder="SKU (e.g. ODOO-01)" 
+              value="{{ v.sku if v.sku is defined and v.sku is not none else (v['sku'] if v is mapping and v.get('sku') else '') }}" 
+              style="margin-bottom: 0; font-size: 0.825rem;"
+            />
+          </div>
+          <div class="currency-input-wrapper">
+            <span class="currency-symbol" style="left: 10px; font-size: 0.85rem;">₹</span>
+            {% set p_extra = v.price_extra if v.price_extra is defined else (v['price_extra'] if v is mapping else 0.0) %}
+            <input 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              name="variant_price_extra[]" 
+              class="form-input form-input-sm variant-surcharge-input" 
+              placeholder="Surcharge" 
+              value="{{ '%.2f'|format(p_extra) if p_extra is not none else '0.00' }}" 
+              oninput="updatePricingPreview();"
+              style="margin-bottom: 0; padding-left: 1.75rem; font-size: 0.825rem;"
+            />
+          </div>
+          <button 
+            type="button" 
+            class="btn-remove-variant" 
+            onclick="removeVariantRow(this);" 
+            title="Remove Variant"
+            style="background: none; border: none; color: var(--danger); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 32px; width: 32px; border-radius: 6px; transition: var(--transition);"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Empty State for Variants -->
+  <div 
+    id="variants-empty-state" 
+    style="text-align: center; padding: var(--space-4); background: #FAFBFD; border: 1px dashed var(--border); border-radius: var(--radius-sm); margin-top: 4px; display: {{ 'none' if saved_variants and saved_variants|length > 0 else 'block' }};"
+  >
+    <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 0;">
+      No variants configured. Click <strong>+ Add Variant</strong> above to set attribute surcharges.
+    </p>
+  </div>
+
+  <!-- Live Pricing Calculation Preview Banner -->
+  <div class="pricing-preview-card" style="margin-top: var(--space-4); background: linear-gradient(135deg, var(--pastel-sky) 0%, #FFFFFF 100%); border: 1px solid #D0E4FA; border-radius: var(--radius-sm); padding: 12px 16px;">
+    <div style="font-size: 0.775rem; text-transform: uppercase; font-weight: 700; color: #1E40AF; letter-spacing: 0.5px; margin-bottom: 6px;">
+      Live Pricing Preview (INR)
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Base Sales Price:</span>
+        <strong id="preview-base-price" style="color: var(--navy); margin-left: 4px;">₹0.00</strong>
+      </div>
+      <div>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Variant Surcharge:</span>
+        <strong id="preview-surcharge-price" style="color: var(--primary-teal); margin-left: 4px;">+₹0.00</strong>
+      </div>
+      <div style="background: var(--white); padding: 4px 10px; border-radius: var(--radius-full); border: 1px solid #BFDBFE;">
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Effective Sales Price:</span>
+        <strong id="preview-effective-price" style="font-size: 0.95rem; color: var(--primary-teal); margin-left: 4px; font-weight: 700;">₹0.00</strong>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Vanilla JS for Dynamic Variant Manager & Live Calculation -->
+<script>
+  function formatINR(val) {
+    const num = isNaN(val) ? 0 : Math.max(0, val);
+    return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function updatePricingPreview() {
+    const baseInput = document.getElementById('product-sales-price');
+    const baseVal = baseInput ? parseFloat(baseInput.value) || 0 : 0;
+
+    // Collect all surcharge inputs
+    const surchargeInputs = document.querySelectorAll('.variant-surcharge-input');
+    let maxSurcharge = 0;
+    surchargeInputs.forEach(input => {
+      const v = parseFloat(input.value) || 0;
+      if (v > maxSurcharge) {
+        maxSurcharge = v;
+      }
+    });
+
+    const effective = baseVal + maxSurcharge;
+
+    const elBase = document.getElementById('preview-base-price');
+    const elSurcharge = document.getElementById('preview-surcharge-price');
+    const elEffective = document.getElementById('preview-effective-price');
+
+    if (elBase) elBase.innerText = formatINR(baseVal);
+    if (elSurcharge) elSurcharge.innerText = '+' + formatINR(maxSurcharge);
+    if (elEffective) elEffective.innerText = formatINR(effective);
+  }
+
+  function toggleVariantsEmptyState() {
+    const container = document.getElementById('variants-list');
+    const emptyState = document.getElementById('variants-empty-state');
+    if (!container || !emptyState) return;
+    const hasRows = container.querySelectorAll('.variant-row').length > 0;
+    emptyState.style.display = hasRows ? 'none' : 'block';
+  }
+
+  function addVariantRow(attrName = '', attrVal = '', skuVal = '', surchargeVal = '0.00') {
+    const container = document.getElementById('variants-list');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'variant-row';
+    row.style.cssText = 'display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr 36px; gap: 8px; align-items: center; background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; animation: modalFadeIn 150ms ease-out;';
+
+    row.innerHTML = `
+      <div>
+        <input 
+          type="text" 
+          name="variant_attribute_name[]" 
+          class="form-input form-input-sm" 
+          placeholder="Attribute (e.g. Brand)" 
+          value="${attrName}" 
+          required
+          style="margin-bottom: 0; font-size: 0.825rem;"
+        />
+      </div>
+      <div>
+        <input 
+          type="text" 
+          name="variant_attribute_value[]" 
+          class="form-input form-input-sm" 
+          placeholder="Value (e.g. Odoo)" 
+          value="${attrVal}" 
+          required
+          style="margin-bottom: 0; font-size: 0.825rem;"
+        />
+      </div>
+      <div>
+        <input 
+          type="text" 
+          name="variant_sku[]" 
+          class="form-input form-input-sm" 
+          placeholder="SKU (e.g. ODOO-01)" 
+          value="${skuVal}" 
+          style="margin-bottom: 0; font-size: 0.825rem;"
+        />
+      </div>
+      <div class="currency-input-wrapper">
+        <span class="currency-symbol" style="left: 10px; font-size: 0.85rem;">₹</span>
+        <input 
+          type="number" 
+          step="0.01" 
+          min="0" 
+          name="variant_price_extra[]" 
+          class="form-input form-input-sm variant-surcharge-input" 
+          placeholder="Surcharge" 
+          value="${surchargeVal}" 
+          oninput="updatePricingPreview();"
+          style="margin-bottom: 0; padding-left: 1.75rem; font-size: 0.825rem;"
+        />
+      </div>
+      <button 
+        type="button" 
+        class="btn-remove-variant" 
+        onclick="removeVariantRow(this);" 
+        title="Remove Variant"
+        style="background: none; border: none; color: var(--danger); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 32px; width: 32px; border-radius: 6px; transition: var(--transition);"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    `;
+
+    container.appendChild(row);
+    toggleVariantsEmptyState();
+    updatePricingPreview();
+  }
+
+  function removeVariantRow(btn) {
+    const row = btn.closest('.variant-row');
+    if (row) {
+      row.remove();
+      toggleVariantsEmptyState();
+      updatePricingPreview();
+    }
+  }
+
+  // Initial calculation on load
+  setTimeout(() => {
+    const baseInput = document.getElementById('product-sales-price');
+    if (baseInput) {
+      baseInput.addEventListener('input', updatePricingPreview);
+    }
+    updatePricingPreview();
+    toggleVariantsEmptyState();
+  }, 50);
+</script>
