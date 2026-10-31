@@ -1,0 +1,131 @@
+<div class="table-container" style="border: none;">
+  <table class="table" style="margin-bottom: 0;">
+    <thead>
+      <tr>
+        <th>Subscription #</th>
+        <th>Customer</th>
+        <th>Plan</th>
+        <th>Start Date</th>
+        <th>Next Billing Date</th>
+        <th style="text-align: right;">Amount (₹)</th>
+        <th>Status</th>
+        <th style="text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="subscriptions-table-body">
+      {% if subscriptions and subscriptions|length > 0 %}
+        {% for s in subscriptions %}
+        {% set st = s.status.value if s.status.value is defined else s.status %}
+        <tr class="subscription-row" data-status="{{ st }}" data-search="{{ s.subscription_number|lower }} {{ s.customer.name|lower if s.customer else '' }} {{ s.customer_name|lower if s.customer_name else '' }}">
+          <td>
+            <a href="/staff/subscriptions/{{ s.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none; display: flex; align-items: center; gap: 6px;">
+              <span>{{ s.subscription_number }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-teal);">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+            {% if s.quotation %}
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                via {{ s.quotation.quotation_number }}
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-weight: 600; color: var(--navy);">
+              {{ s.customer.name if s.customer else (s.customer_name or 'Direct Customer') }}
+            </div>
+            {% if s.customer and s.customer.email %}
+              <div style="font-size: 0.8rem; color: var(--text-muted);">{{ s.customer.email }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-weight: 500; color: var(--text-primary);">
+              {{ s.plan.name if s.plan else (s.plan_name or 'Custom Plan') }}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">
+              {{ s.plan.billing_interval.value|capitalize if (s.plan and s.plan.billing_interval) else (s.billing_interval|capitalize if s.billing_interval else 'Monthly') }}
+            </div>
+          </td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">
+            {{ s.start_date.strftime('%d %b %Y') if s.start_date and s.start_date.strftime is defined else s.start_date }}
+          </td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">
+            {% if st == 'paused' %}
+              <span style="color: #B45309; font-weight: 500;">Frozen</span>
+            {% elif st == 'closed' %}
+              <span style="color: var(--text-muted);">None (Closed)</span>
+            {% else %}
+              <strong>{{ s.next_billing_date.strftime('%d %b %Y') if s.next_billing_date and s.next_billing_date.strftime is defined else s.next_billing_date }}</strong>
+            {% endif %}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: var(--navy);">
+            ₹{{ "{:,.2f}".format(s.total_amount or 0.0) }}
+          </td>
+          <td>
+            <span class="badge {% if st == 'active' %}badge-active{% elif st == 'paused' %}badge-paused{% elif st == 'closed' %}badge-closed{% elif st == 'confirmed' %}badge-confirmed{% elif st == 'quotation' %}badge-quotation{% else %}badge-draft{% endif %}">
+              {{ st|upper }}
+            </span>
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+              <a 
+                href="/staff/subscriptions/{{ s.id }}" 
+                class="btn btn-outline" 
+                style="padding: 4px 10px; font-size: 0.8rem;"
+                title="View Subscription"
+              >
+                View Details
+              </a>
+
+              {% if st == 'active' and s.allow_pause %}
+                <button 
+                  type="button" 
+                  class="btn btn-outline" 
+                  hx-get="/web/subscriptions/{{ s.id }}/modal/pause"
+                  hx-target="#modal-container"
+                  style="padding: 4px 8px; font-size: 0.8rem; color: #B45309; border-color: #FCD34D;"
+                  title="Pause Subscription"
+                >
+                  Pause
+                </button>
+              {% elif st == 'paused' %}
+                <button 
+                  type="button" 
+                  class="btn btn-teal" 
+                  hx-get="/web/subscriptions/{{ s.id }}/modal/resume"
+                  hx-target="#modal-container"
+                  style="padding: 4px 8px; font-size: 0.8rem;"
+                  title="Resume Subscription"
+                >
+                  Resume
+                </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr id="empty-state-row">
+          <td colspan="8" style="text-align: center; padding: var(--space-12) var(--space-4);">
+            <div style="max-width: 340px; margin: 0 auto;">
+              <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-3);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+              </div>
+              <h4 style="color: var(--navy); margin-bottom: 4px;">No Subscriptions Found</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: var(--space-4);">
+                No customer subscriptions match the selected criteria or status filter.
+              </p>
+              <a href="/staff/quotations" class="btn btn-teal" style="font-size: 0.85rem;">
+                Browse Quotations
+              </a>
+            </div>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

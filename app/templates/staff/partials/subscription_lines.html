@@ -1,0 +1,130 @@
+<div style="display: flex; flex-direction: column; gap: var(--space-6);">
+  
+  <!-- Primary Product Lines -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); background-color: #FAFCFE; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 2px;">Contract Service Lines</h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">Recurring products bundled in this active agreement</p>
+      </div>
+      <span class="badge badge-admin">{{ subscription.lines|selectattr('is_addon', 'equalto', false)|list|length }} Line Items</span>
+    </div>
+
+    <div class="table-container" style="border: none;">
+      <table class="table" style="margin-bottom: 0;">
+        <thead>
+          <tr>
+            <th>Product Name</th>
+            <th>Variant</th>
+            <th style="text-align: center;">Qty</th>
+            <th style="text-align: right;">Unit Price</th>
+            <th style="text-align: right;">Surcharge</th>
+            <th style="text-align: right;">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set core_lines = subscription.lines|selectattr('is_addon', 'equalto', false)|list %}
+          {% if core_lines and core_lines|length > 0 %}
+            {% for line in core_lines %}
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--navy);">
+                  {{ line.product.name if line.product else 'Subscription Product' }}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                  ID #{{ line.product_id }}
+                </div>
+              </td>
+              <td>
+                {% if line.variant %}
+                  <span class="badge badge-physical" style="font-size: 0.75rem;">
+                    {{ line.variant.attribute_value }}
+                  </span>
+                {% else %}
+                  <span style="font-size: 0.8rem; color: var(--text-muted);">Standard</span>
+                {% endif %}
+              </td>
+              <td style="text-align: center; font-weight: 600;">{{ line.quantity }}</td>
+              <td style="text-align: right; color: var(--text-secondary);">₹{{ "{:,.2f}".format(line.unit_price or 0.0) }}</td>
+              <td style="text-align: right; color: var(--text-secondary);">
+                {% if line.variant and line.variant.price_extra %}
+                  +₹{{ "{:,.2f}".format(line.variant.price_extra) }}
+                {% else %}
+                  ₹0.00
+                {% endif %}
+              </td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">
+                ₹{{ "{:,.2f}".format(line.line_total or (line.unit_price * line.quantity)) }}
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted); padding: var(--space-6);">
+                No standard service lines found in this subscription record.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Subscription Add-ons Section -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); background-color: #FAFCFE; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 2px;">Subscription Add-ons</h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">Optional upgrades and supplemental recurring modules</p>
+      </div>
+      <span class="badge badge-software">Supplemental</span>
+    </div>
+
+    <div class="table-container" style="border: none;">
+      <table class="table" style="margin-bottom: 0;">
+        <thead>
+          <tr>
+            <th>Add-on Name</th>
+            <th>Type</th>
+            <th>Current Status</th>
+            <th style="text-align: right;">Recurring Price</th>
+            <th style="text-align: right;">Policy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set addon_lines = subscription.lines|selectattr('is_addon', 'equalto', true)|list %}
+          {% if addon_lines and addon_lines|length > 0 %}
+            {% for addon in addon_lines %}
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--navy);">
+                  {{ addon.product.name if addon.product else 'Service Add-on' }}
+                </div>
+              </td>
+              <td><span class="badge badge-admin">Add-on</span></td>
+              <td><span class="badge badge-active">ACTIVE &bull; INCLUDED</span></td>
+              <td style="text-align: right; font-weight: 700; color: var(--navy);">
+                ₹{{ "{:,.2f}".format(addon.line_total or addon.unit_price) }}
+              </td>
+              <td style="text-align: right;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+                  Locked to Agreement
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-6);">
+                <div style="font-size: 0.85rem; color: var(--text-muted);">
+                  No add-ons currently provisioned for this customer subscription.
+                </div>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>

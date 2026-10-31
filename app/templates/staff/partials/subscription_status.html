@@ -1,0 +1,13 @@
+{% set st = subscription.status.value if subscription.status.value is defined else subscription.status %}
+<div id="subscription-status-container" style="display: inline-flex; align-items: center; gap: 8px;">
+  <span class="badge {% if st == 'active' %}badge-active{% elif st == 'paused' %}badge-paused{% elif st == 'closed' %}badge-closed{% elif st == 'confirmed' %}badge-confirmed{% elif st == 'quotation' %}badge-quotation{% else %}badge-draft{% endif %}" style="font-size: 0.85rem; padding: 6px 14px; text-transform: uppercase; font-weight: 700;">
+    {{ st }}
+  </span>
+  {% if st == 'paused' %}
+    <span style="font-size: 0.8rem; color: #B45309; font-weight: 600;">(Billing Halted)</span>
+  {% elif st == 'active' %}
+    <span style="font-size: 0.8rem; color: #059669; font-weight: 500;">Next bill: {{ subscription.next_billing_date.strftime('%d %b %Y') if subscription.next_billing_date and subscription.next_billing_date.strftime is defined else subscription.next_billing_date }}</span>
+  {% elif st == 'closed' %}
+    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Terminated</span>
+  {% endif %}
+</div>

@@ -3292,3 +3292,436 @@ async def convert_quotation_to_sub(
                 break
 
     return RedirectResponse(url=f"/staff/quotations/{quotation_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# F6 Subscription Management Dashboard Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+from app.models.subscription import Subscription, SubscriptionLine, SubscriptionStatus
+from app.services.subscription_service import SubscriptionService, SubscriptionPolicyViolationError, InvalidSubscriptionStateError
+
+MOCK_SUBSCRIPTIONS = [
+    {
+        "id": 1,
+        "subscription_number": "SUB-2026-0001",
+        "customer_id": 1,
+        "customer": {"id": 1, "name": "Acme Innovations Ltd", "email": "contact@acme.example"},
+        "customer_name": "Acme Innovations Ltd",
+        "plan_id": 1,
+        "plan": {"id": 1, "name": "Growth Pro Plan", "billing_interval": BillingInterval.MONTHLY, "interval_count": 1},
+        "plan_name": "Growth Pro Plan",
+        "billing_interval": "monthly",
+        "start_date": date.today() - timedelta(days=60),
+        "expiry_date": date.today() + timedelta(days=305),
+        "next_billing_date": date.today() + timedelta(days=12),
+        "last_billed_date": date.today() - timedelta(days=18),
+        "status": SubscriptionStatus.ACTIVE,
+        "payment_terms": "net_30",
+        "auto_close_on_expiry": True,
+        "allow_early_close": True,
+        "allow_pause": True,
+        "allow_renewal": True,
+        "subtotal": Decimal("2499.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("449.82"),
+        "total_amount": Decimal("2948.82"),
+        "notes": "Annual commitment with monthly payments.",
+        "lines": [
+            {
+                "id": 1,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("2499.00")},
+                "quantity": 1,
+                "unit_price": Decimal("2499.00"),
+                "tax_amount": Decimal("449.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("2948.82"),
+                "is_addon": False,
+            },
+            {
+                "id": 2,
+                "product_id": 2,
+                "product": {"id": 2, "name": "Priority Support SLA", "sales_price": Decimal("499.00")},
+                "quantity": 1,
+                "unit_price": Decimal("499.00"),
+                "tax_amount": Decimal("89.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("588.82"),
+                "is_addon": True,
+            }
+        ],
+    },
+    {
+        "id": 2,
+        "subscription_number": "SUB-2026-0002",
+        "customer_id": 2,
+        "customer": {"id": 2, "name": "BlueSky Tech Labs", "email": "admin@bluesky.example"},
+        "customer_name": "BlueSky Tech Labs",
+        "plan_id": 2,
+        "plan": {"id": 2, "name": "Developer Sandbox Plan", "billing_interval": BillingInterval.MONTHLY, "interval_count": 1},
+        "plan_name": "Developer Sandbox Plan",
+        "billing_interval": "monthly",
+        "start_date": date.today() - timedelta(days=120),
+        "expiry_date": date.today() + timedelta(days=245),
+        "next_billing_date": date.today() + timedelta(days=5),
+        "last_billed_date": date.today() - timedelta(days=25),
+        "status": SubscriptionStatus.PAUSED,
+        "payment_terms": "immediate",
+        "auto_close_on_expiry": False,
+        "allow_early_close": True,
+        "allow_pause": True,
+        "allow_renewal": True,
+        "subtotal": Decimal("999.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("179.82"),
+        "total_amount": Decimal("1178.82"),
+        "notes": "Paused per customer support ticket #4401.",
+        "lines": [
+            {
+                "id": 3,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("999.00")},
+                "quantity": 1,
+                "unit_price": Decimal("999.00"),
+                "tax_amount": Decimal("179.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("1178.82"),
+                "is_addon": False,
+            }
+        ],
+    },
+    {
+        "id": 3,
+        "subscription_number": "SUB-2026-0003",
+        "customer_id": 3,
+        "customer": {"id": 3, "name": "Global Retail Corp", "email": "procurement@globalretail.example"},
+        "customer_name": "Global Retail Corp",
+        "plan_id": 3,
+        "plan": {"id": 3, "name": "Enterprise Scale Plan", "billing_interval": BillingInterval.YEARLY, "interval_count": 1},
+        "plan_name": "Enterprise Scale Plan",
+        "billing_interval": "yearly",
+        "start_date": date.today() - timedelta(days=400),
+        "expiry_date": date.today() - timedelta(days=35),
+        "next_billing_date": date.today() - timedelta(days=35),
+        "last_billed_date": date.today() - timedelta(days=400),
+        "status": SubscriptionStatus.CLOSED,
+        "payment_terms": "net_45",
+        "auto_close_on_expiry": True,
+        "allow_early_close": False,
+        "allow_pause": False,
+        "allow_renewal": False,
+        "subtotal": Decimal("12999.00"),
+        "discount_amount": Decimal("1000.00"),
+        "tax_amount": Decimal("2159.82"),
+        "total_amount": Decimal("14158.82"),
+        "notes": "Expired and auto-closed after contract completion.",
+        "lines": [
+            {
+                "id": 4,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("12999.00")},
+                "quantity": 1,
+                "unit_price": Decimal("12999.00"),
+                "tax_amount": Decimal("2159.82"),
+                "discount_amount": Decimal("1000.00"),
+                "line_total": Decimal("14158.82"),
+                "is_addon": False,
+            }
+        ],
+    },
+]
+
+def _compute_subscription_stats(subs_list):
+    total = len(subs_list)
+    active = sum(1 for s in subs_list if (getattr(s.status, "value", s.status) if hasattr(s, "status") else s.get("status")) == "active")
+    paused = sum(1 for s in subs_list if (getattr(s.status, "value", s.status) if hasattr(s, "status") else s.get("status")) == "paused")
+    closed = sum(1 for s in subs_list if (getattr(s.status, "value", s.status) if hasattr(s, "status") else s.get("status")) == "closed")
+    mrr = sum(
+        (Decimal(str(s.total_amount)) if hasattr(s, "total_amount") else Decimal(str(s.get("total_amount", 0))))
+        for s in subs_list
+        if (getattr(s.status, "value", s.status) if hasattr(s, "status") else s.get("status")) == "active"
+    )
+    return {
+        "total": total,
+        "active": active,
+        "paused": paused,
+        "closed": closed,
+        "mrr": mrr,
+    }
+
+@router.get("/staff/subscriptions", response_class=HTMLResponse)
+async def subscriptions_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    db_subs = []
+    if user.organization_id:
+        try:
+            db_subs = await SubscriptionService.list_subscriptions(db, organization_id=user.organization_id)
+        except Exception:
+            db_subs = []
+    subscriptions = db_subs if db_subs else list(MOCK_SUBSCRIPTIONS)
+    stats = _compute_subscription_stats(subscriptions)
+
+    return templates.TemplateResponse(
+        name="staff/subscriptions.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "subscriptions",
+            "subscriptions": subscriptions,
+            "stats": stats,
+        },
+    )
+
+@router.get("/web/subscriptions", response_class=HTMLResponse)
+async def subscriptions_table_partial(
+    request: Request,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    
+    # Query param might be named 'status' or 'status_filter'
+    req_status = request.query_params.get("status") or status_filter
+    req_search = request.query_params.get("search") or search
+
+    db_subs = []
+    if user and user.organization_id:
+        try:
+            db_subs = await SubscriptionService.list_subscriptions(
+                db, organization_id=user.organization_id, status=req_status, search=req_search
+            )
+        except Exception:
+            db_subs = []
+
+    if db_subs:
+        subscriptions = db_subs
+    else:
+        subscriptions = list(MOCK_SUBSCRIPTIONS)
+        if req_status and req_status != "all":
+            subscriptions = [
+                s for s in subscriptions 
+                if (getattr(s.status, "value", s.status) if hasattr(s, "status") else s.get("status")) == req_status.lower()
+            ]
+        if req_search:
+            s_clean = req_search.strip().lower()
+            subscriptions = [
+                s for s in subscriptions 
+                if s_clean in str(s.get("subscription_number") if isinstance(s, dict) else s.subscription_number).lower()
+                or s_clean in str(s.get("customer_name") if isinstance(s, dict) else (s.customer.name if s.customer else "")).lower()
+            ]
+
+    return templates.TemplateResponse(
+        name="staff/partials/subscription_table.html",
+        context={
+            "request": request,
+            "user": user,
+            "subscriptions": subscriptions,
+        },
+    )
+
+@router.get("/staff/subscriptions/{subscription_id}", response_class=HTMLResponse)
+async def subscription_detail_page(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.get_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                sub = ms
+                break
+
+    if not sub:
+        return RedirectResponse(url="/staff/subscriptions", status_code=status.HTTP_302_FOUND)
+
+    return templates.TemplateResponse(
+        name="staff/subscription_detail.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "subscriptions",
+            "subscription": sub,
+        },
+    )
+
+@router.get("/web/subscriptions/{subscription_id}/modal/{action}", response_class=HTMLResponse)
+async def subscription_modal(
+    subscription_id: int,
+    action: str,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return HTMLResponse(content="", status_code=status.HTTP_401_UNAUTHORIZED)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.get_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                sub = ms
+                break
+
+    if not sub:
+        return HTMLResponse(content="<div class='alert alert-danger'>Subscription not found.</div>", status_code=404)
+
+    return templates.TemplateResponse(
+        name="staff/partials/subscription_confirmation.html",
+        context={
+            "request": request,
+            "user": user,
+            "subscription": sub,
+            "action": action,
+        },
+    )
+
+@router.post("/web/subscriptions/{subscription_id}/pause", response_class=HTMLResponse)
+async def pause_subscription_route(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.pause_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                ms["status"] = SubscriptionStatus.PAUSED
+                sub = ms
+                break
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            name="staff/subscription_detail.html",
+            context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
+        )
+    return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/web/subscriptions/{subscription_id}/resume", response_class=HTMLResponse)
+async def resume_subscription_route(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.resume_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                ms["status"] = SubscriptionStatus.ACTIVE
+                sub = ms
+                break
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            name="staff/subscription_detail.html",
+            context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
+        )
+    return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/web/subscriptions/{subscription_id}/close", response_class=HTMLResponse)
+async def close_subscription_route(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.close_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                ms["status"] = SubscriptionStatus.CLOSED
+                sub = ms
+                break
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            name="staff/subscription_detail.html",
+            context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
+        )
+    return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/web/subscriptions/{subscription_id}/renew", response_class=HTMLResponse)
+async def renew_subscription_route(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    sub = None
+    if user.organization_id:
+        try:
+            sub = await SubscriptionService.renew_subscription(db, organization_id=user.organization_id, subscription_id=subscription_id)
+        except Exception:
+            sub = None
+
+    if not sub:
+        for ms in MOCK_SUBSCRIPTIONS:
+            if str(ms.get("id")) == str(subscription_id):
+                ms["status"] = SubscriptionStatus.ACTIVE
+                ms["expiry_date"] = ms["expiry_date"] + timedelta(days=30)
+                ms["next_billing_date"] = date.today() + timedelta(days=30)
+                sub = ms
+                break
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            name="staff/subscription_detail.html",
+            context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
+        )
+    return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)

@@ -1,6 +1,6 @@
 from datetime import date
-from typing import List, Optional
-from sqlalchemy import select, and_
+from typing import List, Optional, Union
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,8 +49,11 @@ class SubscriptionService:
             .options(
                 selectinload(Subscription.lines).selectinload(SubscriptionLine.product),
                 selectinload(Subscription.lines).selectinload(SubscriptionLine.variant),
+                selectinload(Subscription.lines).selectinload(SubscriptionLine.tax_rule),
+                selectinload(Subscription.lines).selectinload(SubscriptionLine.discount_rule),
                 selectinload(Subscription.customer),
                 selectinload(Subscription.plan),
+                selectinload(Subscription.quotation),
             )
             .where(
                 and_(
@@ -66,7 +69,7 @@ class SubscriptionService:
 
         # Customer portal access control
         if user and user.role == UserRole.CUSTOMER:
-            if sub.customer.user_id != user.id and sub.customer.email.lower() != user.email.lower():
+            if sub.customer and sub.customer.user_id != user.id and sub.customer.email.lower() != user.email.lower():
                 raise SubscriptionAccessDeniedError("Access to this subscription is restricted to its owner.")
 
         return sub
@@ -75,15 +78,16 @@ class SubscriptionService:
     async def list_subscriptions(
         session: AsyncSession,
         organization_id: int,
-        status: Optional[SubscriptionStatus] = None,
+        status: Optional[Union[SubscriptionStatus, str]] = None,
         customer_id: Optional[int] = None,
         user: Optional[User] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Subscription]:
         """
         Lists subscriptions scoped to tenant organization.
-        Supports filtering by status and customer.
+        Supports filtering by status, customer, and search query.
         For customer role, automatically restricts to subscriptions owned by that customer.
         """
         filters = [Subscription.organization_id == organization_id]
@@ -104,8 +108,15 @@ class SubscriptionService:
         elif customer_id is not None:
             filters.append(Subscription.customer_id == customer_id)
 
-        if status is not None:
-            filters.append(Subscription.status == status)
+        if status is not None and status != "all":
+            if isinstance(status, str):
+                try:
+                    st_enum = SubscriptionStatus(status.lower())
+                    filters.append(Subscription.status == st_enum)
+                except ValueError:
+                    pass
+            else:
+                filters.append(Subscription.status == status)
 
         stmt = (
             select(Subscription)
@@ -117,9 +128,18 @@ class SubscriptionService:
             )
             .where(and_(*filters))
             .order_by(Subscription.id.desc())
-            .offset(skip)
-            .limit(limit)
         )
+
+        if search:
+            s_clean = f"%{search.strip().lower()}%"
+            stmt = stmt.outerjoin(Customer, Subscription.customer_id == Customer.id).where(
+                or_(
+                    func.lower(Subscription.subscription_number).like(s_clean),
+                    func.lower(Customer.name).like(s_clean),
+                )
+            )
+
+        stmt = stmt.offset(skip).limit(limit)
         res = await session.execute(stmt)
         return list(res.scalars().all())
 
@@ -163,7 +183,7 @@ class SubscriptionService:
             raise InvalidSubscriptionStateError(f"Cannot resume subscription with status '{sub.status}'. Only Paused subscriptions can be resumed.")
 
         today = date.today()
-        if sub.next_billing_date <= today:
+        if sub.next_billing_date <= today and sub.plan:
             # Recalculate next billing date from today
             sub.next_billing_date = advance_date(today, sub.plan.billing_interval, sub.plan.interval_count)
 
@@ -221,13 +241,16 @@ class SubscriptionService:
 
         today = date.today()
         plan = sub.plan
-        # Advance expiry by 1 billing cycle or 1 year
+        interval = plan.billing_interval if plan else BillingInterval.MONTHLY
+        interval_count = plan.interval_count if plan else 1
+
+        # Advance expiry by 1 billing cycle
         base_expiry = sub.expiry_date if sub.expiry_date > today else today
-        new_expiry = advance_date(base_expiry, plan.billing_interval, plan.interval_count)
+        new_expiry = advance_date(base_expiry, interval, interval_count)
 
         sub.expiry_date = new_expiry
         if sub.status == SubscriptionStatus.CLOSED or sub.next_billing_date <= today:
-            sub.next_billing_date = advance_date(today, plan.billing_interval, plan.interval_count)
+            sub.next_billing_date = advance_date(today, interval, interval_count)
 
         sub.status = SubscriptionStatus.ACTIVE
         await session.commit()

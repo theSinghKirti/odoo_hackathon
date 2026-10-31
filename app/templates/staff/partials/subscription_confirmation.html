@@ -1,0 +1,110 @@
+<div class="modal-backdrop" id="confirmation-modal" style="display: flex;" onclick="if(event.target === this) this.remove();">
+  <div class="modal-card" style="max-width: 500px;">
+    
+    <div class="modal-header">
+      <div>
+        {% if action == 'pause' %}
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--pastel-yellow); color: #B45309; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </div>
+          <h2 class="modal-title" style="color: var(--navy);">Pause Subscription?</h2>
+          <p class="modal-subtitle">Hold recurring charges and service entitlement.</p>
+        {% elif action == 'resume' %}
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+          <h2 class="modal-title" style="color: var(--navy);">Resume Subscription?</h2>
+          <p class="modal-subtitle">Reactivate customer access and resume billing schedule.</p>
+        {% elif action == 'close' %}
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--pastel-pink); color: var(--danger); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <h2 class="modal-title" style="color: var(--navy);">Close Subscription?</h2>
+          <p class="modal-subtitle">Contract termination and service deprovisioning.</p>
+        {% elif action == 'renew' %}
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+          </div>
+          <h2 class="modal-title" style="color: var(--navy);">Renew Subscription?</h2>
+          <p class="modal-subtitle">Extend contract term and schedule next billing cycle.</p>
+        {% endif %}
+      </div>
+      <button type="button" class="modal-close-btn" onclick="document.getElementById('confirmation-modal').remove();">&times;</button>
+    </div>
+
+    <form 
+      hx-post="/web/subscriptions/{{ subscription.id }}/{{ action }}" 
+      hx-target="#detail-dynamic-wrapper" 
+      hx-swap="outerHTML"
+      hx-disabled-elt="#btn-confirm-action"
+      onsubmit="document.getElementById('confirmation-modal').remove();"
+    >
+      <div class="modal-body">
+        <div style="background-color: var(--pastel-sky); border-radius: var(--radius-sm); padding: 12px; margin-bottom: var(--space-4);">
+          <div style="font-weight: 700; color: var(--navy); font-size: 0.95rem;">{{ subscription.subscription_number }}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">
+            Customer: <strong>{{ subscription.customer.name if subscription.customer else 'Direct Customer' }}</strong> &bull; Plan: <strong>{{ subscription.plan.name if subscription.plan else 'Standard Plan' }}</strong>
+          </div>
+        </div>
+
+        {% if action == 'pause' %}
+          <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+            Pausing this subscription will freeze the recurring invoice schedule and mark the account as <strong>PAUSED</strong> in accordance with the backend lifecycle policy. The customer will not be billed while paused.
+          </p>
+          <div style="font-size: 0.8rem; color: #B45309; background: #FEF3C7; padding: 8px 12px; border-radius: 6px; border: 1px solid #FDE68A;">
+            &bull; Plan Policy Check: <strong>Allow Pause = Permitted</strong>
+          </div>
+        {% elif action == 'resume' %}
+          <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+            Resuming this subscription will return the status to <strong>ACTIVE</strong>, reinstate customer service access, and resume automatic invoice generation on scheduled billing intervals.
+          </p>
+        {% elif action == 'close' %}
+          <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+            Closing this subscription permanently halts all future recurring billing. Depending on backend policy, early termination may be final.
+          </p>
+          {% if subscription.allow_early_close %}
+            <div style="font-size: 0.8rem; color: #059669; background: #D1FAE5; padding: 8px 12px; border-radius: 6px; border: 1px solid #A7F3D0;">
+              &bull; Plan Policy: Early cancellation permitted prior to expiry date.
+            </div>
+          {% else %}
+            <div style="font-size: 0.8rem; color: var(--danger); background: #FEE2E2; padding: 8px 12px; border-radius: 6px; border: 1px solid #FECACA;">
+              &bull; Plan Policy Notice: Early termination is restricted by contract.
+            </div>
+          {% endif %}
+        {% elif action == 'renew' %}
+          <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+            Renewing will extend the subscription's expiration date by one billing cycle and recalculate the next billing date.
+          </p>
+          <div style="font-size: 0.8rem; color: #1E40AF; background: #DBEAFE; padding: 8px 12px; border-radius: 6px; border: 1px solid #BFDBFE;">
+            &bull; Billing Interval: <strong>{{ subscription.plan.billing_interval.value|capitalize if (subscription.plan and subscription.plan.billing_interval) else 'Monthly' }}</strong>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('confirmation-modal').remove();">Cancel</button>
+        <button 
+          type="submit" 
+          id="btn-confirm-action" 
+          class="btn {% if action == 'close' %}btn-danger{% else %}btn-teal{% endif %}"
+          style="font-weight: 600;"
+        >
+          {% if action == 'pause' %}Confirm Pause
+          {% elif action == 'resume' %}Confirm Resume
+          {% elif action == 'close' %}Confirm Close
+          {% elif action == 'renew' %}Confirm Renewal
+          {% else %}Confirm Action{% endif %}
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
