@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Sign In — Subly{% endblock %}
+{% block title %}Sign In — Subly Multi-Role Workspace{% endblock %}
 
 {% block content %}
 <div class="auth-page-wrapper">
   <div class="auth-split-card">
     
-    <!-- LEFT PANEL: PROMOTIONAL / FEATURE SHOWCASE -->
+    <!-- LEFT PANEL: PROMOTIONAL / ROLE OVERVIEW (NEOBRUTALISM BLUE) -->
     <div class="auth-left-panel">
       <div>
         <!-- Subly Logo -->
@@ -21,84 +21,124 @@
 
         <!-- Tagline Pill -->
         <div class="auth-tagline-pill">
-          <span>Manage · Track · Grow</span>
+          <span>Multi-Tenant SaaS · 3 Dedicated Roles</span>
         </div>
 
-        <!-- Headline with Teal Highlights -->
+        <!-- Headline with Neobrutalist Highlights -->
         <h2 class="auth-headline">
-          Streamline your <span class="highlight-teal">recurring revenue</span> with ease.
+          Dedicated access for <span class="highlight-teal">Admins</span>, <span class="highlight-teal">Staff</span> &amp; <span class="highlight-teal">Customers</span>.
         </h2>
         <p class="auth-description">
-          A modern, multi-tenant subscription engine built for seamless customer management, quotes, and automated invoicing.
+          Whether managing entire business operations, handling daily invoices and quotations, or reviewing customer subscriptions, Subly provides tailored workspaces for every role.
         </p>
 
-        <!-- Feature Rows -->
+        <!-- Role Highlights List -->
         <div class="auth-features-list">
-          <!-- Feature 1: Manage Customers -->
-          <div class="auth-feature-item">
-            <div class="auth-feature-icon sky">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div class="auth-feature-text">
-              <h4>Manage Customers</h4>
-              <p>Isolated tenant spaces with role-based permissions.</p>
-            </div>
-          </div>
-
-          <!-- Feature 2: Track Payments -->
-          <div class="auth-feature-item">
+          <!-- Role 1: Admin -->
+          <div class="auth-feature-item" style="cursor: pointer;" onclick="selectRole('admin')">
             <div class="auth-feature-icon lavender">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <line x1="2" y1="10" x2="22" y2="10"/>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
             </div>
             <div class="auth-feature-text">
-              <h4>Track Payments</h4>
-              <p>Automate recurring billing, offline & gateway receipts.</p>
+              <h4>Admin Panel</h4>
+              <p>Full control: users, plans, catalog, taxes, discounts & analytics.</p>
             </div>
           </div>
 
-          <!-- Feature 3: Get Insights -->
-          <div class="auth-feature-item">
-            <div class="auth-feature-icon mint">
+          <!-- Role 2: Staff -->
+          <div class="auth-feature-item" style="cursor: pointer;" onclick="selectRole('staff')">
+            <div class="auth-feature-icon sky">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
               </svg>
             </div>
             <div class="auth-feature-text">
-              <h4>Get Insights</h4>
-              <p>Real-time analytics, renewal alerts, and health metrics.</p>
+              <h4>Staff Panel</h4>
+              <p>Daily operations: customers, quotations, subscriptions & invoices.</p>
+            </div>
+          </div>
+
+          <!-- Role 3: Customer -->
+          <div class="auth-feature-item" style="cursor: pointer;" onclick="selectRole('customer')">
+            <div class="auth-feature-icon mint">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div class="auth-feature-text">
+              <h4>Customer Portal</h4>
+              <p>Self-service: active plans, invoices breakdown & online checkout.</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Preview Card Decorator -->
+      <!-- Live Tenant Isolation Badge -->
       <div class="auth-preview-badge-card">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 10px; height: 10px; border-radius: 50%; background-color: var(--primary-teal);"></div>
-          <span style="font-size: 0.825rem; font-weight: 600; color: var(--navy);">Tenant Isolation Active</span>
+          <div style="width: 10px; height: 10px; border-radius: 50%; background-color: #22C55E; border: 1.5px solid #000;"></div>
+          <span style="font-size: 0.825rem; font-weight: 800; color: #000000;">Brightloop Software (Tenant #1)</span>
         </div>
-        <span class="badge badge-active">Protected</span>
+        <span class="badge badge-active">Live Neon DB</span>
       </div>
     </div>
 
-    <!-- RIGHT PANEL: AUTHENTICATION FORM -->
+    <!-- RIGHT PANEL: AUTHENTICATION FORM WITH ROLE TABS -->
     <div class="auth-right-panel">
       <!-- Top Switch Link -->
       <div class="auth-header-top">
-        <span>Don't have an account? <a href="/register?role=customer" style="font-weight: 600;">Customer Signup</a> &middot; <a href="/register?role=admin" style="font-weight: 600;">Register Company</a></span>
+        <span>New to Subly? <a href="/register?role=customer">Customer Signup</a> &middot; <a href="/register?role=admin">Register Company</a></span>
       </div>
 
       <div class="auth-header">
         <h1 class="auth-title">Welcome Back</h1>
-        <p class="auth-subtitle">Sign in to your organization workspace</p>
+        <p class="auth-subtitle">Choose your role or enter your credentials below</p>
+      </div>
+
+      <!-- ROLE SELECTOR TABS -->
+      <div style="margin-bottom: var(--space-4);">
+        <label class="form-label">Sign In As:</label>
+        <div class="role-tabs-grid">
+          <button 
+            type="button" 
+            id="tab-admin" 
+            class="role-tab-btn {% if selected_role == 'admin' %}active{% endif %}"
+            onclick="selectRole('admin')"
+          >
+            👑 Admin
+          </button>
+          <button 
+            type="button" 
+            id="tab-staff" 
+            class="role-tab-btn {% if selected_role == 'staff' %}active{% endif %}"
+            onclick="selectRole('staff')"
+          >
+            💼 Staff
+          </button>
+          <button 
+            type="button" 
+            id="tab-customer" 
+            class="role-tab-btn {% if selected_role == 'customer' %}active{% endif %}"
+            onclick="selectRole('customer')"
+          >
+            👤 Customer
+          </button>
+        </div>
+      </div>
+
+      <!-- ROLE INFO CALLOUT BANNER -->
+      <div id="role-banner" style="background-color: var(--pastel-sky); border: 2px solid #000000; box-shadow: 2px 2px 0px 0px #000000; border-radius: var(--radius-base); padding: 10px 14px; margin-bottom: var(--space-4); display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div id="role-title" style="font-weight: 900; font-size: 0.85rem; color: #000000;">👑 System Administrator</div>
+          <div id="role-desc" style="font-size: 0.775rem; color: var(--text-secondary); font-weight: 600;">Full business control, revenue analytics, users &amp; system setup</div>
+        </div>
+        <button type="button" class="btn btn-xs btn-yellow" onclick="fillSelectedRole()" title="Fill pre-seeded credentials">
+          Pre-fill Demo
+        </button>
       </div>
 
       <!-- Error / Flash Alerts -->
@@ -125,43 +165,29 @@
       </div>
 
       <!-- Login Form -->
-      <form method="POST" action="/login">
+      <form method="POST" action="/login" id="login-form">
         <!-- Email Input -->
         <div class="form-group">
           <label for="email" class="form-label">Email Address</label>
-          <div class="input-with-icon has-left-icon">
-            <span class="input-icon-left">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
-            </span>
-            <input 
-              type="email" 
-              id="email" 
-              name="email" 
-              class="form-control" 
-              placeholder="name@company.com" 
-              required 
-              autocomplete="email"
-              value="{{ email or '' }}"
-            >
-          </div>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            class="form-control" 
+            placeholder="name@brightloop.io" 
+            required 
+            autocomplete="email"
+            value="{% if selected_role == 'staff' %}marcus.staff@brightloop.io{% elif selected_role == 'customer' %}billing@acmecloud.io{% else %}admin@brightloop.io{% endif %}"
+          >
         </div>
 
         <!-- Password Input -->
         <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <label for="password" class="form-label" style="margin-bottom: 0;">Password</label>
-            <a href="/forgot-password" style="font-size: 0.8rem; font-weight: 500;">Forgot password?</a>
+            <a href="/forgot-password" style="font-size: 0.8rem; font-weight: 700;">Forgot password?</a>
           </div>
-          <div class="input-with-icon has-left-icon">
-            <span class="input-icon-left">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </span>
+          <div style="position: relative;">
             <input 
               type="password" 
               id="password" 
@@ -170,37 +196,114 @@
               placeholder="••••••••" 
               required 
               autocomplete="current-password"
+              value="{% if selected_role == 'staff' %}Staff@Brightloop123{% elif selected_role == 'customer' %}Customer@1234{% else %}Admin@Brightloop123{% endif %}"
             >
-            <!-- Password Visibility Toggle Button -->
-            <button 
-              type="button" 
-              class="password-toggle-btn" 
-              data-target="password" 
-              title="Toggle password visibility"
-              aria-label="Toggle password visibility"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
           </div>
         </div>
 
         <!-- Submit Button -->
-        <button type="submit" class="btn btn-teal" style="width: 100%; padding: 0.75rem; margin-top: var(--space-2);">
-          Sign In
+        <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; padding: 0.75rem; margin-top: var(--space-2); font-size: 0.95rem;">
+          Sign In &rarr;
         </button>
       </form>
 
+      <!-- Quick 1-Click Role Logins -->
+      <div style="margin-top: var(--space-5); padding-top: var(--space-4); border-top: 2px solid #000000;">
+        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #000000; letter-spacing: 0.04em; margin-bottom: 8px;">
+          Quick 1-Click Role Switcher:
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-xs" style="background-color: var(--neo-lavender);" onclick="quickLogin('admin')">
+            👑 Admin
+          </button>
+          <button type="button" class="btn btn-xs" style="background-color: var(--neo-cyan);" onclick="quickLogin('staff')">
+            💼 Staff
+          </button>
+          <button type="button" class="btn btn-xs" style="background-color: var(--neo-mint);" onclick="quickLogin('customer')">
+            👤 Customer
+          </button>
+        </div>
+      </div>
+
       <!-- Terms & Privacy -->
-      <div style="margin-top: var(--space-6); text-align: center; font-size: 0.785rem; color: var(--text-muted);">
+      <div style="margin-top: var(--space-4); text-align: center; font-size: 0.785rem; color: var(--text-muted); font-weight: 600;">
         By signing in, you agree to Subly's 
-        <a href="#" style="color: var(--text-muted); text-decoration: underline;">Terms of Service</a> and 
-        <a href="#" style="color: var(--text-muted); text-decoration: underline;">Privacy Policy</a>.
+        <a href="#" style="color: #000000;">Terms</a> and 
+        <a href="#" style="color: #000000;">Privacy Policy</a>.
       </div>
     </div>
 
   </div>
 </div>
+
+<script>
+const ROLE_DATA = {
+  admin: {
+    title: "👑 System Administrator",
+    desc: "Full business control, revenue analytics, users & system setup",
+    email: "admin@brightloop.io",
+    pass: "Admin@Brightloop123",
+    bg: "var(--pastel-lavender)",
+    btnText: "Sign In as Admin →"
+  },
+  staff: {
+    title: "💼 Operations Staff",
+    desc: "Customer management, quotations, subscription lifecycle & invoices",
+    email: "marcus.staff@brightloop.io",
+    pass: "Staff@Brightloop123",
+    bg: "var(--pastel-sky)",
+    btnText: "Sign In as Staff →"
+  },
+  customer: {
+    title: "👤 Customer Portal",
+    desc: "Self-service subscriptions, quotes review & instant online payment",
+    email: "billing@acmecloud.io",
+    pass: "Customer@1234",
+    bg: "var(--pastel-mint)",
+    btnText: "Sign In to Customer Portal →"
+  }
+};
+
+let currentRole = "{{ selected_role or 'admin' }}";
+
+function selectRole(role) {
+  currentRole = role;
+  
+  // Update tabs
+  document.querySelectorAll('.role-tab-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById(`tab-${role}`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  // Update banner
+  const data = ROLE_DATA[role];
+  if (data) {
+    document.getElementById('role-title').textContent = data.title;
+    document.getElementById('role-desc').textContent = data.desc;
+    document.getElementById('role-banner').style.backgroundColor = data.bg;
+    document.getElementById('submit-btn').textContent = data.btnText;
+    
+    // Auto-fill inputs with the role's demo credentials
+    document.getElementById('email').value = data.email;
+    document.getElementById('password').value = data.pass;
+  }
+}
+
+function fillSelectedRole() {
+  const data = ROLE_DATA[currentRole];
+  if (data) {
+    document.getElementById('email').value = data.email;
+    document.getElementById('password').value = data.pass;
+  }
+}
+
+function quickLogin(role) {
+  selectRole(role);
+  document.getElementById('login-form').submit();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  selectRole(currentRole);
+});
+</script>
 {% endblock %}

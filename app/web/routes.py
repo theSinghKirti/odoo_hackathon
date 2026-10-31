@@ -94,14 +94,29 @@ async def home(request: Request, db: AsyncSession = Depends(get_async_db)):
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, db: AsyncSession = Depends(get_async_db)):
+@router.get("/login/{role_name}", response_class=HTMLResponse)
+async def login_page(
+    request: Request,
+    role_name: Optional[str] = None,
+    role: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
     user = await get_optional_user(request, db)
     if user:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    selected_role = (role_name or role or "admin").lower()
+    if selected_role not in ("admin", "staff", "customer"):
+        selected_role = "admin"
+
     return templates.TemplateResponse(
         request=request,
         name="auth/login.html",
-        context={"user": None, "error": None},
+        context={
+            "user": None,
+            "error": None,
+            "selected_role": selected_role,
+        },
     )
 
 

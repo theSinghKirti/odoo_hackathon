@@ -1444,3 +1444,54 @@ input:focus, select:focus, textarea:focus {
     padding: 0 !important;
   }
 }
+
+/* Role Switcher Tabs (Admin, Staff, Customer) */
+.role-tabs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: var(--space-4);
+}
+
+.role-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background-color: #FFFFFF;
+  border: 2px solid #000000;
+  border-radius: var(--radius-base);
+  box-shadow: 2px 2px 0px 0px #000000;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #000000;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.role-tab-btn:hover {
+  background-color: var(--neo-yellow);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px 0px #000000;
+}
+
+.role-tab-btn.active {
+  background-color: var(--neo-yellow);
+  box-shadow: 3px 3px 0px 0px #000000;
+  transform: translate(-1px, -1px);
+}
+
+.role-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1.5px solid #000000;
+  border-radius: 4px;
+}
