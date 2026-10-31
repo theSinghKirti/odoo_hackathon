@@ -1,0 +1,84 @@
+<form id="portal-profile-form" 
+      hx-post="/portal/profile" 
+      hx-target="#profile-form-container" 
+      hx-swap="innerHTML"
+      style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+  {% if success_message %}
+  <div class="alert" style="background-color: var(--pastel-mint); border: 1px solid #A7F3D0; color: #065F46; padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <span>{{ success_message }}</span>
+  </div>
+  {% endif %}
+
+  {% if error_message %}
+  <div class="alert" style="background-color: var(--pastel-pink); border: 1px solid #FECDD3; color: #9F1239; padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span>{{ error_message }}</span>
+  </div>
+  {% endif %}
+
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4);">
+    <!-- Full Name -->
+    <div class="form-group">
+      <label class="form-label" for="profile-name">Full Name / Business Name *</label>
+      <input type="text" id="profile-name" name="name" class="form-input" required 
+             value="{{ customer.name if customer else (user.full_name or '') }}" 
+             placeholder="e.g. Acme Innovations Pvt Ltd">
+      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Used on all your invoices and receipts.</p>
+    </div>
+
+    <!-- Email (Locked / Read-only for Security) -->
+    <div class="form-group">
+      <label class="form-label" for="profile-email">
+        Account Email Address
+        <span class="badge" style="background-color: #F1F5F9; color: #64748B; font-size: 0.7rem; margin-left: 6px;">Protected</span>
+      </label>
+      <input type="email" id="profile-email" name="email" class="form-input" readonly 
+             value="{{ customer.email if customer else (user.email or '') }}" 
+             style="background-color: #F8FAFC; color: #64748B; cursor: not-allowed;">
+      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Primary account identity. Contact support to change your login email.</p>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4);">
+    <!-- Phone -->
+    <div class="form-group">
+      <label class="form-label" for="profile-phone">Contact Phone Number</label>
+      <input type="tel" id="profile-phone" name="phone" class="form-input" 
+             value="{{ customer.phone if customer and customer.phone else '' }}" 
+             placeholder="+91 98765 43210">
+      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Used for renewal SMS alerts and billing notices.</p>
+    </div>
+
+    <!-- Company / Organization Reference -->
+    <div class="form-group">
+      <label class="form-label">Service Provider</label>
+      <input type="text" class="form-input" readonly 
+             value="{{ user.organization.name if user and user.organization else 'Subly Cloud' }}" 
+             style="background-color: #F8FAFC; color: #64748B; cursor: not-allowed;">
+      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Your organization workspace hosting your services.</p>
+    </div>
+  </div>
+
+  <!-- Billing Address -->
+  <div class="form-group">
+    <label class="form-label" for="profile-address">Billing & Tax Address</label>
+    <textarea id="profile-address" name="address" class="form-input" rows="3" 
+              placeholder="Suite / Street, City, State, PIN / Postal Code, Country">{{ customer.address if customer and customer.address else '' }}</textarea>
+    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">This address will appear as the customer destination on printable tax invoices.</p>
+  </div>
+
+  <!-- Submit Button -->
+  <div style="display: flex; justify-content: flex-end; margin-top: var(--space-3);">
+    <button type="submit" class="btn btn-teal" style="font-size: 0.85rem; font-weight: 600; padding: 10px 20px;">
+      Save Profile Changes
+    </button>
+  </div>
+</form>

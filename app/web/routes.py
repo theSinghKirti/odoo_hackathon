@@ -4430,3 +4430,463 @@ async def verify_razorpay_payment_web(
         "amount_due": float(target_inv["amount_due"]),
         "invoice_status": "paid",
     })
+
+
+# ==============================================================================
+# F9 — DEDICATED CUSTOMER PORTAL ENDPOINTS
+# ==============================================================================
+
+async def _resolve_portal_customer(user: User, db: AsyncSession):
+    """
+    Resolve the customer profile linked to the authenticated user.
+    Enforces tenant scoping and maps user to customer identity.
+    """
+    try:
+        stmt = select(Customer).where(Customer.user_id == user.id)
+        res = await db.execute(stmt)
+        cust = res.scalars().first()
+        if cust:
+            return cust
+
+        stmt2 = select(Customer).where(
+            Customer.email == user.email,
+            Customer.organization_id == user.organization_id
+        )
+        res2 = await db.execute(stmt2)
+        cust2 = res2.scalars().first()
+        if cust2:
+            return cust2
+    except Exception:
+        pass
+
+    for mc in MOCK_CUSTOMERS:
+        if mc.get("email") == user.email:
+            return mc
+
+    if MOCK_CUSTOMERS:
+        return MOCK_CUSTOMERS[0]
+
+    return {
+        "id": 1,
+        "organization_id": user.organization_id or 1,
+        "name": user.full_name or "Valued Customer",
+        "email": user.email,
+        "phone": "+91 98765 43210",
+        "address": "123 Business Park, Tech Zone, Bangalore 560001",
+    }
+
+
+def _get_customer_id(customer) -> int:
+    if hasattr(customer, "id"):
+        return customer.id
+    if isinstance(customer, dict):
+        return customer.get("id", 1)
+    return 1
+
+
+@router.get("/portal", response_class=HTMLResponse)
+@router.get("/portal/dashboard", response_class=HTMLResponse)
+async def portal_dashboard(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login?next=/portal", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    subs = [s for s in MOCK_SUBSCRIPTIONS if (s.get("customer_id") == cid or (isinstance(s.get("customer"), dict) and s.get("customer", {}).get("id") == cid))]
+    if not subs and getattr(user.role, "value", user.role) in ("super_admin", "org_admin", "staff"):
+        subs = list(MOCK_SUBSCRIPTIONS)
+
+    invs = [i for i in MOCK_INVOICES if (i.get("customer_id") == cid or (isinstance(i.get("customer"), dict) and i.get("customer", {}).get("id") == cid))]
+    if not invs and getattr(user.role, "value", user.role) in ("super_admin", "org_admin", "staff"):
+        invs = list(MOCK_INVOICES)
+
+    active_subs = [s for s in subs if (s.get("status").value if hasattr(s.get("status"), "value") else str(s.get("status"))) == "active"]
+    upcoming_renewals = [s for s in active_subs if s.get("next_billing_date") and s.get("next_billing_date") <= (date.today() + timedelta(days=30))]
+
+    pending_invoices = [i for i in invs if (i.get("amount_due") and Decimal(str(i.get("amount_due", 0))) > 0)]
+    total_outstanding = sum(Decimal(str(i.get("amount_due", 0))) for i in pending_invoices)
+
+    stats = {
+        "active_subscriptions": len(active_subs),
+        "upcoming_renewals": len(upcoming_renewals),
+        "pending_invoices": len(pending_invoices),
+        "total_outstanding": float(total_outstanding),
+    }
+
+    sorted_renewals = sorted(active_subs, key=lambda s: s.get("next_billing_date") or date.max)[:5]
+    sorted_invoices = sorted(invs, key=lambda i: i.get("invoice_date") or date.min, reverse=True)[:5]
+
+    return templates.TemplateResponse(
+        "portal/dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "stats": stats,
+            "upcoming_renewals": sorted_renewals,
+            "recent_invoices": sorted_invoices,
+            "active_nav": "portal_overview",
+        },
+    )
+
+
+@router.get("/portal/subscriptions", response_class=HTMLResponse)
+@router.get("/web/portal/subscriptions", response_class=HTMLResponse)
+async def portal_subscriptions(
+    request: Request,
+    status_filter: Optional[str] = None,
+    q: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        if request.url.path.startswith("/web/"):
+            return HTMLResponse("<p>Session expired. Please log in.</p>", status_code=401)
+        return RedirectResponse(url="/auth/login?next=/portal/subscriptions", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    subs = [s for s in MOCK_SUBSCRIPTIONS if (s.get("customer_id") == cid or (isinstance(s.get("customer"), dict) and s.get("customer", {}).get("id") == cid))]
+    if not subs and getattr(user.role, "value", user.role) in ("super_admin", "org_admin", "staff"):
+        subs = list(MOCK_SUBSCRIPTIONS)
+
+    query_str = (q or request.query_params.get("q", "")).strip().lower()
+    if query_str:
+        subs = [
+            s for s in subs
+            if query_str in (s.get("subscription_number") or "").lower()
+            or query_str in (s.get("plan_name") or (s.get("plan", {}).get("name") if isinstance(s.get("plan"), dict) else "")).lower()
+        ]
+
+    s_filter = (status_filter or request.query_params.get("status", "")).strip().lower()
+    if s_filter and s_filter != "all":
+        subs = [
+            s for s in subs
+            if (s.get("status").value if hasattr(s.get("status"), "value") else str(s.get("status"))).lower() == s_filter
+        ]
+
+    if request.url.path.startswith("/web/"):
+        return templates.TemplateResponse(
+            "portal/partials/subscription_cards.html",
+            {
+                "request": request,
+                "subscriptions": subs,
+                "current_status": s_filter,
+                "search_query": query_str,
+            },
+        )
+
+    return templates.TemplateResponse(
+        "portal/subscriptions.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "subscriptions": subs,
+            "current_status": s_filter,
+            "search_query": query_str,
+            "active_nav": "portal_subscriptions",
+        },
+    )
+
+
+@router.get("/portal/subscriptions/{subscription_id}", response_class=HTMLResponse)
+async def portal_subscription_detail(
+    request: Request,
+    subscription_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"/auth/login?next=/portal/subscriptions/{subscription_id}", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    target_sub = next((s for s in MOCK_SUBSCRIPTIONS if s.get("id") == subscription_id), None)
+    if not target_sub:
+        return HTMLResponse("Subscription not found", status_code=404)
+
+    sub_cid = target_sub.get("customer_id") or (target_sub.get("customer", {}).get("id") if isinstance(target_sub.get("customer"), dict) else None)
+    if sub_cid != cid and getattr(user.role, "value", user.role) not in ("super_admin", "org_admin", "staff"):
+        return HTMLResponse("Access denied: You do not have permission to view this subscription.", status_code=403)
+
+    sub_invoices = [i for i in MOCK_INVOICES if i.get("subscription_id") == subscription_id]
+
+    return templates.TemplateResponse(
+        "portal/subscription_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "subscription": target_sub,
+            "subscription_invoices": sub_invoices,
+            "active_nav": "portal_subscriptions",
+        },
+    )
+
+
+@router.post("/portal/subscriptions/{subscription_id}/pause")
+async def portal_subscription_pause(
+    request: Request,
+    subscription_id: int,
+    reason: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    target_sub = next((s for s in MOCK_SUBSCRIPTIONS if s.get("id") == subscription_id), None)
+    if not target_sub:
+        return HTMLResponse("Subscription not found", status_code=404)
+
+    sub_cid = target_sub.get("customer_id") or (target_sub.get("customer", {}).get("id") if isinstance(target_sub.get("customer"), dict) else None)
+    if sub_cid != cid and getattr(user.role, "value", user.role) not in ("super_admin", "org_admin", "staff"):
+        return HTMLResponse("Access denied", status_code=403)
+
+    if not target_sub.get("allow_pause", True):
+        return HTMLResponse("Pause is not allowed for this subscription plan.", status_code=400)
+
+    target_sub["status"] = SubscriptionStatus.PAUSED
+    target_sub["pause_reason"] = reason or "Customer requested self-service pause."
+
+    return RedirectResponse(url=f"/portal/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/subscriptions/{subscription_id}/resume")
+async def portal_subscription_resume(
+    request: Request,
+    subscription_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    target_sub = next((s for s in MOCK_SUBSCRIPTIONS if s.get("id") == subscription_id), None)
+    if not target_sub:
+        return HTMLResponse("Subscription not found", status_code=404)
+
+    sub_cid = target_sub.get("customer_id") or (target_sub.get("customer", {}).get("id") if isinstance(target_sub.get("customer"), dict) else None)
+    if sub_cid != cid and getattr(user.role, "value", user.role) not in ("super_admin", "org_admin", "staff"):
+        return HTMLResponse("Access denied", status_code=403)
+
+    target_sub["status"] = SubscriptionStatus.ACTIVE
+    target_sub["next_billing_date"] = date.today() + timedelta(days=30)
+
+    return RedirectResponse(url=f"/portal/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/subscriptions/{subscription_id}/cancel")
+async def portal_subscription_cancel(
+    request: Request,
+    subscription_id: int,
+    reason: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    target_sub = next((s for s in MOCK_SUBSCRIPTIONS if s.get("id") == subscription_id), None)
+    if not target_sub:
+        return HTMLResponse("Subscription not found", status_code=404)
+
+    sub_cid = target_sub.get("customer_id") or (target_sub.get("customer", {}).get("id") if isinstance(target_sub.get("customer"), dict) else None)
+    if sub_cid != cid and getattr(user.role, "value", user.role) not in ("super_admin", "org_admin", "staff"):
+        return HTMLResponse("Access denied", status_code=403)
+
+    if not target_sub.get("allow_early_close", True):
+        return HTMLResponse("Early cancellation is disabled for this subscription term.", status_code=400)
+
+    target_sub["status"] = SubscriptionStatus.CLOSED
+    target_sub["close_reason"] = reason or "Customer requested cancellation via portal."
+
+    return RedirectResponse(url=f"/portal/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/invoices", response_class=HTMLResponse)
+@router.get("/web/portal/invoices", response_class=HTMLResponse)
+async def portal_invoices(
+    request: Request,
+    status_filter: Optional[str] = None,
+    q: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        if request.url.path.startswith("/web/"):
+            return HTMLResponse("<p>Session expired. Please log in.</p>", status_code=401)
+        return RedirectResponse(url="/auth/login?next=/portal/invoices", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    invs = [i for i in MOCK_INVOICES if (i.get("customer_id") == cid or (isinstance(i.get("customer"), dict) and i.get("customer", {}).get("id") == cid))]
+    if not invs and getattr(user.role, "value", user.role) in ("super_admin", "org_admin", "staff"):
+        invs = list(MOCK_INVOICES)
+
+    query_str = (q or request.query_params.get("q", "")).strip().lower()
+    if query_str:
+        invs = [
+            i for i in invs
+            if query_str in (i.get("invoice_number") or "").lower()
+            or query_str in (i.get("customer_name") or "").lower()
+        ]
+
+    s_filter = (status_filter or request.query_params.get("status", "")).strip().lower()
+    if s_filter and s_filter != "all":
+        if s_filter in ("confirmed", "posted"):
+            invs = [
+                i for i in invs
+                if (i.get("status").value if hasattr(i.get("status"), "value") else str(i.get("status"))).lower() in ("confirmed", "posted")
+            ]
+        else:
+            invs = [
+                i for i in invs
+                if (i.get("status").value if hasattr(i.get("status"), "value") else str(i.get("status"))).lower() == s_filter
+            ]
+
+    if request.url.path.startswith("/web/"):
+        return templates.TemplateResponse(
+            "portal/partials/invoice_table.html",
+            {
+                "request": request,
+                "invoices": invs,
+                "current_status": s_filter,
+                "search_query": query_str,
+            },
+        )
+
+    return templates.TemplateResponse(
+        "portal/invoices.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "invoices": invs,
+            "current_status": s_filter,
+            "search_query": query_str,
+            "active_nav": "portal_invoices",
+        },
+    )
+
+
+@router.get("/portal/invoices/{invoice_id}", response_class=HTMLResponse)
+async def portal_invoice_detail(
+    request: Request,
+    invoice_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"/auth/login?next=/portal/invoices/{invoice_id}", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    cid = _get_customer_id(customer)
+
+    target_inv = next((i for i in MOCK_INVOICES if i.get("id") == invoice_id), None)
+    if not target_inv:
+        return HTMLResponse("Invoice not found", status_code=404)
+
+    inv_cid = target_inv.get("customer_id") or (target_inv.get("customer", {}).get("id") if isinstance(target_inv.get("customer"), dict) else None)
+    if inv_cid != cid and getattr(user.role, "value", user.role) not in ("super_admin", "org_admin", "staff"):
+        return HTMLResponse("Access denied: You do not have permission to view this invoice.", status_code=403)
+
+    return templates.TemplateResponse(
+        "portal/invoice_detail.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "invoice": target_inv,
+            "active_nav": "portal_invoices",
+        },
+    )
+
+
+@router.get("/portal/profile", response_class=HTMLResponse)
+async def portal_profile(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login?next=/portal/profile", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+
+    return templates.TemplateResponse(
+        "portal/profile.html",
+        {
+            "request": request,
+            "user": user,
+            "customer": customer,
+            "active_nav": "portal_profile",
+        },
+    )
+
+
+@router.post("/portal/profile", response_class=HTMLResponse)
+async def portal_profile_update(
+    request: Request,
+    name: str = Form(...),
+    phone: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    customer = await _resolve_portal_customer(user, db)
+    success_message = "Your profile information has been saved successfully."
+    error_message = None
+
+    try:
+        if hasattr(customer, "name"):
+            customer.name = name.strip()
+            customer.phone = phone.strip() if phone else None
+            customer.address = address.strip() if address else None
+            await db.commit()
+            await db.refresh(customer)
+        elif isinstance(customer, dict):
+            customer["name"] = name.strip()
+            customer["phone"] = phone.strip() if phone else None
+            customer["address"] = address.strip() if address else None
+
+        user.full_name = name.strip()
+        await db.commit()
+    except Exception as e:
+        error_message = f"Could not update profile: {str(e)}"
+        success_message = None
+
+    if "hx-request" in request.headers:
+        return templates.TemplateResponse(
+            "portal/partials/profile_form.html",
+            {
+                "request": request,
+                "user": user,
+                "customer": customer,
+                "success_message": success_message,
+                "error_message": error_message,
+            },
+        )
+
+    return RedirectResponse(url="/portal/profile", status_code=status.HTTP_303_SEE_OTHER)

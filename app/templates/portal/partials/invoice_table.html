@@ -1,0 +1,83 @@
+{% if invoices and invoices|length > 0 %}
+<div class="table-container">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Date</th>
+        <th>Due Date</th>
+        <th>Plan / Description</th>
+        <th style="text-align: right;">Total Amount</th>
+        <th style="text-align: right;">Amount Due</th>
+        <th style="text-align: center;">Status</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>
+          <a href="/portal/invoices/{{ inv.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none;">
+            {{ inv.invoice_number or ('INV-' ~ inv.id) }}
+          </a>
+        </td>
+        <td style="color: var(--text-secondary); font-size: 0.85rem;">
+          {{ inv.invoice_date.strftime('%d %b %Y') if inv.invoice_date else 'N/A' }}
+        </td>
+        <td style="color: var(--text-secondary); font-size: 0.85rem;">
+          {{ inv.due_date.strftime('%d %b %Y') if inv.due_date else 'Immediate' }}
+        </td>
+        <td style="font-size: 0.85rem; color: var(--navy);">
+          {{ inv.subscription.plan.name if inv.subscription and inv.subscription.plan else (inv.subscription.name if inv.subscription else 'Direct Service') }}
+        </td>
+        <td style="text-align: right; font-weight: 700; color: var(--navy);">
+          ₹{{ "{:,.2f}".format(inv.total_amount if inv.total_amount is defined else 0.0) }}
+        </td>
+        <td style="text-align: right; font-weight: 700; color: {% if inv.amount_due and inv.amount_due > 0 %}#DC2626{% else %}#047857{% endif %};">
+          ₹{{ "{:,.2f}".format(inv.amount_due if inv.amount_due is defined else 0.0) }}
+        </td>
+        <td style="text-align: center;">
+          {% if inv.status == 'paid' %}
+            <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-size: 0.75rem; font-weight: 600;">Paid</span>
+          {% elif inv.status == 'overdue' %}
+            <span class="badge" style="background-color: var(--pastel-pink); color: #DC2626; font-size: 0.75rem; font-weight: 600;">Overdue</span>
+          {% elif inv.status == 'confirmed' or inv.status == 'posted' %}
+            <span class="badge" style="background-color: var(--pastel-lavender); color: #7C3AED; font-size: 0.75rem; font-weight: 600;">Awaiting Payment</span>
+          {% elif inv.status == 'draft' %}
+            <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7; font-size: 0.75rem; font-weight: 600;">Draft</span>
+          {% else %}
+            <span class="badge" style="background-color: #F1F5F9; color: #64748B; font-size: 0.75rem;">{{ inv.status|capitalize }}</span>
+          {% endif %}
+        </td>
+        <td style="text-align: right;">
+          <div style="display: inline-flex; gap: 6px; align-items: center;">
+            <a href="/portal/invoices/{{ inv.id }}" class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600;">
+              View
+            </a>
+            {% if inv.amount_due and inv.amount_due > 0 and inv.status != 'draft' %}
+            <a href="/portal/invoices/{{ inv.id }}#pay" class="btn btn-teal" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600;">
+              Pay Now
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: var(--space-10) var(--space-6);">
+  <div style="width: 56px; height: 56px; border-radius: 50%; background-color: var(--pastel-lavender); color: #7C3AED; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-4);">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <line x1="2" y1="10" x2="22" y2="10"/>
+    </svg>
+  </div>
+  <h3 style="font-size: 1.15rem; color: var(--navy); margin-bottom: 6px;">No Invoices Found</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto var(--space-5);">
+    There are no invoices matching your current filters or records for this account.
+  </p>
+  <a href="/portal/invoices" class="btn btn-outline" style="font-size: 0.85rem;">Clear Filters</a>
+</div>
+{% endif %}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Customer Portal — Subly{% endblock %}</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- HTMX 1.9.10 -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <style>
+    /* Customer Portal Specific Enhancements */
+    .portal-shell {
+      display: flex;
+      min-height: 100vh;
+      background-color: var(--pastel-sky);
+    }
+    .portal-sidebar {
+      width: 250px;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 50;
+    }
+    .portal-sidebar-header {
+      padding: var(--space-5) var(--space-6);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .portal-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .portal-topbar {
+      height: 64px;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-8);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .portal-content {
+      padding: var(--space-8);
+      flex: 1;
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    @media (max-width: 768px) {
+      .portal-shell {
+        flex-direction: column;
+      }
+      .portal-sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+      }
+      .portal-content {
+        padding: var(--space-4);
+      }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="portal-shell">
+    
+    <!-- Portal Customer Sidebar -->
+    <aside class="portal-sidebar no-print">
+      <div class="portal-sidebar-header">
+        <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--primary-teal), var(--navy)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem;">S</div>
+        <div>
+          <span style="font-size: 1.15rem; font-weight: 800; color: var(--navy); letter-spacing: -0.5px;">SUBLY</span>
+          <span class="badge" style="background-color: var(--pastel-mint); color: #047857; font-size: 0.65rem; padding: 2px 6px; margin-left: 4px;">PORTAL</span>
+        </div>
+      </div>
+
+      <div style="padding: var(--space-4) var(--space-3); flex: 1;">
+        <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 0 var(--space-3) var(--space-2); letter-spacing: 0.5px;">
+          Self-Service Menu
+        </div>
+        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;">
+          <li class="nav-item {% if active_nav == 'portal_overview' %}active{% endif %}">
+            <a href="/portal">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span>Overview</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'portal_subscriptions' %}active{% endif %}">
+            <a href="/portal/subscriptions">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>My Subscriptions</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'portal_invoices' %}active{% endif %}">
+            <a href="/portal/invoices">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+              <span>My Invoices</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'portal_profile' %}active{% endif %}">
+            <a href="/portal/profile">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span>My Profile</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Portal Footer Tenant Label -->
+      <div style="padding: var(--space-4); border-top: 1px solid var(--border); background-color: #FAFCFE;">
+        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+          Workspace Client of<br>
+          <strong style="color: var(--navy);">{{ user.organization.name if user and user.organization else 'Subly Cloud' }}</strong>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Container -->
+    <div class="portal-main">
+      <!-- Portal Topbar -->
+      <header class="portal-topbar no-print">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+          {% block breadcrumb %}
+            <span style="color: var(--text-muted);">Customer Portal</span>
+          {% endblock %}
+        </div>
+
+        <div style="display: flex; align-items: center; gap: var(--space-4);">
+          <!-- Customer Profile Capsule -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; border: 1px solid #BAE6FD;">
+              {{ (user.full_name or 'C')[0]|upper if user else 'C' }}
+            </div>
+            <div style="display: flex; flex-direction: column;">
+              <span style="font-size: 0.85rem; font-weight: 700; color: var(--navy);">{{ user.full_name if user else 'Client Account' }}</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">{{ user.email if user else 'customer@example.com' }}</span>
+            </div>
+          </div>
+
+          <a href="/auth/logout" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 500;">
+            Sign Out
+          </a>
+        </div>
+      </header>
+
+      <!-- Portal Content Body -->
+      <main class="portal-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+
+  </div>
+
+  <div id="portal-modal-container"></div>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

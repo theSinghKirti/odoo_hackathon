@@ -1,0 +1,72 @@
+{% extends "portal/layout.html" %}
+
+{% block title %}My Profile — Customer Portal{% endblock %}
+
+{% block breadcrumb %}
+  <span>Customer Portal</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">My Profile</span>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div style="margin-bottom: var(--space-6);">
+  <h1 style="font-size: 1.65rem; color: var(--navy); margin: 0 0 4px;">My Profile</h1>
+  <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">
+    Manage your billing address, contact phone, and view account configuration.
+  </p>
+</div>
+
+<div class="grid" style="grid-template-columns: 1fr 2fr; gap: var(--space-6);">
+  <!-- Left Column: Customer Account Summary -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    
+    <div class="card" style="text-align: center; padding: var(--space-6);">
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #E0F2FE, #BAE6FD); color: #0284C7; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 800; margin: 0 auto var(--space-3); border: 2px solid #BAE6FD;">
+        {{ (customer.name or (user.full_name or 'C'))[0]|upper }}
+      </div>
+      <h2 style="font-size: 1.2rem; color: var(--navy); margin-bottom: 2px;">
+        {{ customer.name if customer else (user.full_name or 'Client Account') }}
+      </h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: var(--space-4);">
+        {{ customer.email if customer else user.email }}
+      </p>
+
+      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <span class="badge" style="background-color: var(--pastel-mint); color: #047857;">Verified Customer</span>
+        <span class="badge" style="background-color: var(--pastel-sky); color: #0284C7;">Active Account</span>
+      </div>
+    </div>
+
+    <!-- Security & Workspace Notice -->
+    <div class="card" style="background-color: #FAFCFE; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+      <h4 style="font-size: 0.85rem; color: var(--navy); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-teal);">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        Account Security
+      </h4>
+      <p style="margin: 0 0 8px;">
+        Your customer portal access is strictly isolated to your own subscriptions and invoices.
+      </p>
+      <p style="margin: 0;">
+        Provider Workspace: <strong style="color: var(--navy);">{{ user.organization.name if user and user.organization else 'Subly Cloud' }}</strong>
+      </p>
+    </div>
+
+  </div>
+
+  <!-- Right Column: Profile Edit Form -->
+  <div>
+    <div class="card">
+      <h2 style="font-size: 1.15rem; color: var(--navy); margin-bottom: var(--space-4);">Account Details</h2>
+      
+      <div id="profile-form-container">
+        {% include "portal/partials/profile_form.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
