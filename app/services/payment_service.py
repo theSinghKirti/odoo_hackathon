@@ -5,7 +5,10 @@ import hmac
 import json
 from typing import Any, Dict, List, Optional
 import uuid
-import razorpay
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -128,7 +131,7 @@ class PaymentService:
         # Initialize Razorpay client
         order_id: str
         try:
-            if settings.RAZORPAY_KEY_ID.startswith("rzp_test_mock") or not settings.is_production:
+            if not razorpay or settings.RAZORPAY_KEY_ID.startswith("rzp_test_mock") or not settings.is_production:
                 # In development/test mock mode, create deterministic mock order ID
                 order_id = f"order_{uuid.uuid4().hex[:14]}"
             else:

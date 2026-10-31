@@ -68,6 +68,7 @@ class InvoiceService:
                 selectinload(Invoice.lines).selectinload(InvoiceLine.discount_rule),
                 selectinload(Invoice.customer),
                 selectinload(Invoice.subscription),
+                selectinload(Invoice.payments),
             )
             .where(
                 and_(

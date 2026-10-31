@@ -1,0 +1,188 @@
+<div class="modal-backdrop" id="payment-modal" style="display: none;" onclick="if(event.target === this) closePaymentModal();">
+  <div class="modal-card" style="max-width: 560px;">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 42px; height: 42px; border-radius: 10px; background: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="modal-title" style="color: var(--navy); margin-bottom: 2px;">Record Offline Payment</h2>
+          <p class="modal-subtitle">Log manual bank transfer, cheque, or cash settlement.</p>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closePaymentModal();">&times;</button>
+    </div>
+
+    <!-- Invoice Summary Banner -->
+    <div style="margin: 0 var(--space-6) var(--space-4); background-color: var(--pastel-sky); border: 1px solid #BAE6FD; border-radius: var(--radius-sm); padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div>
+          <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Invoice Reference</span>
+          <div style="font-weight: 700; color: var(--navy); font-size: 1rem;">{{ invoice.invoice_number }}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Customer</span>
+          <div style="font-weight: 600; color: var(--navy); font-size: 0.9rem;">
+            {{ invoice.customer.name if invoice.customer else (invoice.customer_name or 'Direct Customer') }}
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; border-top: 1px solid #E0F2FE; padding-top: 8px; font-size: 0.825rem;">
+        <div>
+          <span style="color: var(--text-secondary);">Total:</span>
+          <strong style="color: var(--navy);">₹{{ "{:,.2f}".format(invoice.total_amount or 0.0) }}</strong>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary);">Paid:</span>
+          <strong style="color: #059669;">₹{{ "{:,.2f}".format(invoice.amount_paid or 0.0) }}</strong>
+        </div>
+        <div style="text-align: right;">
+          <span style="color: #92400E; font-weight: 600;">Balance Due:</span>
+          <strong style="color: #B45309; font-size: 0.95rem;">₹{{ "{:,.2f}".format(invoice.amount_due or 0.0) }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Offline Payment Form -->
+    <form 
+      id="offline-payment-form"
+      action="/web/invoices/{{ invoice.id }}/payments"
+      method="POST"
+      hx-post="/web/invoices/{{ invoice.id }}/payments"
+      hx-target="#invoice-detail-wrapper"
+      hx-swap="outerHTML"
+      hx-disabled-elt="#btn-submit-offline-payment"
+      onsubmit="return validateOfflinePayment();"
+    >
+      <div class="modal-body" style="padding-top: 0;">
+        
+        <!-- Payment Method Selection -->
+        <div class="form-group" style="margin-bottom: var(--space-4);">
+          <label class="form-label">Payment Method <span style="color: var(--danger);">*</span></label>
+          <select name="payment_method" id="payment_method" class="form-select" onchange="togglePaymentMethodFields(this.value);" required>
+            <option value="bank_transfer" selected>Bank Transfer (NEFT / RTGS / IMPS)</option>
+            <option value="cheque">Cheque</option>
+            <option value="cash">Cash Receipt</option>
+            <option value="other">Other Manual Settlement</option>
+          </select>
+        </div>
+
+        <div class="form-grid-2" style="margin-bottom: var(--space-4);">
+          <!-- Payment Amount -->
+          <div class="form-group">
+            <label class="form-label">Payment Amount (₹) <span style="color: var(--danger);">*</span></label>
+            <div style="position: relative;">
+              <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--navy);">₹</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0.01" 
+                max="{{ invoice.amount_due }}"
+                name="amount" 
+                id="payment_amount" 
+                class="form-input" 
+                value="{{ invoice.amount_due }}" 
+                style="padding-left: 28px; font-weight: 700; font-size: 1.05rem;"
+                required
+              >
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: block;">
+              Cannot exceed remaining balance of ₹{{ "{:,.2f}".format(invoice.amount_due or 0.0) }}
+            </span>
+          </div>
+
+          <!-- Payment Date -->
+          <div class="form-group">
+            <label class="form-label">Payment Date <span style="color: var(--danger);">*</span></label>
+            <input 
+              type="date" 
+              name="payment_date" 
+              id="payment_date" 
+              class="form-input" 
+              value="{{ today }}" 
+              required
+            >
+          </div>
+        </div>
+
+        <!-- Conditional Fields Section -->
+        <div id="method-conditional-fields" style="background-color: #FAFCFE; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: var(--space-4);">
+          
+          <!-- Bank Transfer Fields -->
+          <div id="fields-bank_transfer" class="method-specific-block">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.825rem;">Bank Transaction Reference / UTR Number</label>
+              <input type="text" name="bank_ref" id="bank_ref" class="form-input" placeholder="e.g. UTR1234567890 or NEFT-BENG-01">
+            </div>
+          </div>
+
+          <!-- Cheque Fields -->
+          <div id="fields-cheque" class="method-specific-block" style="display: none;">
+            <div class="form-grid-2">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.825rem;">Cheque Number</label>
+                <input type="text" name="cheque_no" id="cheque_no" class="form-input" placeholder="e.g. 000452">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.825rem;">Issuing Bank Name</label>
+                <input type="text" name="cheque_bank" id="cheque_bank" class="form-input" placeholder="e.g. State Bank of India">
+              </div>
+            </div>
+          </div>
+
+          <!-- Cash Fields -->
+          <div id="fields-cash" class="method-specific-block" style="display: none;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.825rem;">Cash Receipt Reference / Register ID</label>
+              <input type="text" name="cash_receipt" id="cash_receipt" class="form-input" placeholder="e.g. CASH-RCP-2026-081">
+            </div>
+          </div>
+
+          <!-- Other Fields -->
+          <div id="fields-other" class="method-specific-block" style="display: none;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.825rem;">Settlement Identifier</label>
+              <input type="text" name="other_ref" id="other_ref" class="form-input" placeholder="e.g. Credit voucher or bartered settlement">
+            </div>
+          </div>
+        </div>
+
+        <!-- Reference Notes -->
+        <div class="form-group">
+          <label class="form-label">Internal Reference / Ledger Note</label>
+          <textarea 
+            name="note" 
+            id="payment_note" 
+            class="form-textarea" 
+            rows="2" 
+            placeholder="Enter transaction details, deposited account, or reconciliation notes..."
+          ></textarea>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closePaymentModal();">Cancel</button>
+        <button 
+          type="submit" 
+          id="btn-submit-offline-payment" 
+          class="btn btn-teal" 
+          style="font-weight: 600; display: inline-flex; align-items: center; gap: 8px;"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Record Payment</span>
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>

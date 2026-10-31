@@ -13,6 +13,7 @@ from app.core.security import (
     create_access_token,
     decode_access_token,
     set_auth_cookie,
+    delete_auth_cookie,
 )
 from app.db.session import get_async_db
 from app.models.user import User, UserRole
@@ -133,6 +134,14 @@ async def login_submit(
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+
+@router.api_route("/logout", methods=["GET", "POST"], response_class=HTMLResponse)
+@router.api_route("/auth/logout", methods=["GET", "POST"], response_class=HTMLResponse)
+async def web_logout(request: Request):
+    resp = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    delete_auth_cookie(resp)
+    resp.headers["HX-Redirect"] = "/login"
+    return resp
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -4306,13 +4315,14 @@ async def staff_payments_page(
 
 
 @router.post("/web/payments", response_class=HTMLResponse)
+@router.post("/web/payments/record", response_class=HTMLResponse)
 async def record_payment_route(
     request: Request,
     invoice_id: int = Form(...),
-    customer_id: int = Form(...),
+    customer_id: Optional[int] = Form(None),
     amount: Decimal = Form(...),
-    payment_method: str = Form(...),
-    payment_date: str = Form(...),
+    payment_method: str = Form("bank_transfer"),
+    payment_date: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_async_db),
 ):
@@ -4328,11 +4338,12 @@ async def record_payment_route(
 
     p_dt = datetime.strptime(payment_date, "%Y-%m-%d").date() if payment_date else date.today()
     meth_enum = getattr(PaymentMethod, payment_method.upper(), PaymentMethod.OTHER)
+    resolved_cust_id = customer_id or invoice.customer_id
 
     payment = Payment(
         organization_id=user.organization_id,
         invoice_id=invoice.id,
-        customer_id=customer_id,
+        customer_id=resolved_cust_id,
         payment_method=meth_enum,
         amount=amount,
         payment_date=p_dt,
@@ -4350,6 +4361,29 @@ async def record_payment_route(
     await db.commit()
 
     return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/web/invoices/{invoice_id}/payments", response_class=HTMLResponse)
+async def record_invoice_payment_route(
+    invoice_id: int,
+    request: Request,
+    amount: Decimal = Form(...),
+    payment_method: str = Form("bank_transfer"),
+    payment_date: Optional[str] = Form(None),
+    note: Optional[str] = Form(None),
+    customer_id: Optional[int] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    return await record_payment_route(
+        request=request,
+        invoice_id=invoice_id,
+        customer_id=customer_id,
+        amount=amount,
+        payment_method=payment_method,
+        payment_date=payment_date,
+        note=note,
+        db=db,
+    )
 
 
 # ===========================================================================
@@ -4561,6 +4595,18 @@ async def portal_close_sub(subscription_id: int, request: Request, db: AsyncSess
     return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.get("/portal/subscriptions/{subscription_id}", response_class=HTMLResponse)
+async def portal_subscription_detail_page(
+    subscription_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/portal/invoices", response_class=HTMLResponse)
 async def portal_invoices_page(
     request: Request,
@@ -4617,6 +4663,37 @@ async def portal_pay_invoice(
         await db.commit()
 
     return RedirectResponse(url="/portal/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/invoices/{invoice_id}", response_class=HTMLResponse)
+@router.get("/portal/invoices/{invoice_id}/print", response_class=HTMLResponse)
+async def portal_invoice_print_page(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt = (
+        select(Invoice)
+        .options(
+            selectinload(Invoice.customer),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.product),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.variant),
+        )
+        .where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    )
+    invoice = (await db.execute(stmt)).scalars().first()
+    if not invoice:
+        return RedirectResponse(url="/portal/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/invoice_print.html",
+        context={"invoice": invoice, "user": user},
+    )
 
 
 @router.get("/portal/profile", response_class=HTMLResponse)

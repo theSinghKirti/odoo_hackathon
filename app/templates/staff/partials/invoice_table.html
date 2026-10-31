@@ -1,0 +1,137 @@
+<div class="table-container" style="border: none;">
+  <table class="table" style="margin-bottom: 0;">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Customer</th>
+        <th>Invoice Date</th>
+        <th>Due Date</th>
+        <th style="text-align: right;">Total Amount (₹)</th>
+        <th style="text-align: right;">Amount Due (₹)</th>
+        <th>Status</th>
+        <th style="text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="invoices-table-body">
+      {% if invoices and invoices|length > 0 %}
+        {% for inv in invoices %}
+        {% set st = inv.status.value if inv.status.value is defined else inv.status %}
+        {% set is_overdue = (st != 'paid' and st != 'cancelled' and inv.due_date and today and inv.due_date < today) %}
+        <tr class="invoice-row" data-status="{% if is_overdue %}overdue{% else %}{{ st }}{% endif %}" data-search="{{ inv.invoice_number|lower }} {{ inv.customer.name|lower if inv.customer else '' }} {{ inv.customer_name|lower if inv.customer_name else '' }}">
+          <td>
+            <a href="/staff/invoices/{{ inv.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none; display: flex; align-items: center; gap: 6px;">
+              <span>{{ inv.invoice_number }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-teal);">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
+            {% if inv.subscription %}
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                Sub: {{ inv.subscription.subscription_number }}
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-weight: 600; color: var(--navy);">
+              {{ inv.customer.name if inv.customer else (inv.customer_name or 'Direct Customer') }}
+            </div>
+            {% if inv.customer and inv.customer.email %}
+              <div style="font-size: 0.8rem; color: var(--text-muted);">{{ inv.customer.email }}</div>
+            {% endif %}
+          </td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">
+            {{ inv.invoice_date.strftime('%d %b %Y') if inv.invoice_date and inv.invoice_date.strftime is defined else inv.invoice_date }}
+          </td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">
+            {% if is_overdue %}
+              <span style="color: #DC2626; font-weight: 600;">{{ inv.due_date.strftime('%d %b %Y') if inv.due_date and inv.due_date.strftime is defined else inv.due_date }}</span>
+            {% else %}
+              <span>{{ inv.due_date.strftime('%d %b %Y') if inv.due_date and inv.due_date.strftime is defined else inv.due_date }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: var(--navy);">
+            ₹{{ "{:,.2f}".format(inv.total_amount or 0.0) }}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: {% if inv.amount_due and inv.amount_due > 0 %}#B45309{% else %}#059669{% endif %};">
+            ₹{{ "{:,.2f}".format(inv.amount_due or 0.0) }}
+          </td>
+          <td>
+            {% if is_overdue %}
+              <span class="badge badge-overdue">OVERDUE</span>
+            {% elif st == 'paid' %}
+              <span class="badge badge-active">PAID</span>
+            {% elif st == 'confirmed' %}
+              <span class="badge badge-quotation">CONFIRMED</span>
+            {% elif st == 'cancelled' %}
+              <span class="badge badge-closed">CANCELLED</span>
+            {% else %}
+              <span class="badge badge-draft">DRAFT</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+              <a 
+                href="/staff/invoices/{{ inv.id }}" 
+                class="btn btn-outline" 
+                style="padding: 4px 10px; font-size: 0.8rem;"
+                title="View Invoice"
+              >
+                View
+              </a>
+
+              <button 
+                type="button" 
+                class="btn btn-outline"
+                onclick="window.open('/staff/invoices/{{ inv.id }}?print=true', '_blank');"
+                style="padding: 4px 8px; font-size: 0.8rem;"
+                title="Print Invoice"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 6 2 18 2 18 9"/>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                  <rect x="6" y="14" width="12" height="8"/>
+                </svg>
+              </button>
+
+              {% if st == 'draft' %}
+                <form action="/web/invoices/{{ inv.id }}/confirm" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Confirm Invoice {{ inv.invoice_number }}?');">
+                  <button 
+                    type="submit" 
+                    class="btn btn-teal" 
+                    style="padding: 4px 10px; font-size: 0.8rem;"
+                    title="Confirm Invoice"
+                  >
+                    Confirm
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr id="empty-state-row">
+          <td colspan="8" style="text-align: center; padding: var(--space-12) var(--space-4);">
+            <div style="max-width: 340px; margin: 0 auto;">
+              <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-3);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+              </div>
+              <h4 style="color: var(--navy); margin-bottom: 4px;">No Invoices Found</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: var(--space-4);">
+                Invoices generated from recurring subscription billing cycles or created by staff will appear here.
+              </p>
+              <a href="/staff/subscriptions" class="btn btn-teal" style="font-size: 0.85rem;">
+                View Active Subscriptions
+              </a>
+            </div>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
