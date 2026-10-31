@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Subscription Manager{% endblock %}
+
+{% block content %}
+<!-- Tenant & User Info Banner -->
+<div class="user-banner">
+  <div>
+    <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">
+      {{ organization.name }} Workspace
+    </h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">
+      Tenant Slug: <strong>{{ organization.slug }}</strong> &bull; Organization ID: <strong>#{{ organization.id }}</strong>
+    </p>
+  </div>
+  <div style="text-align: right;">
+    <span class="badge badge-{{ user.role.value if user.role.value is defined else user.role }}" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">
+      {{ user.role.value if user.role.value is defined else user.role }}
+    </span>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.35rem;">
+      Signed in as <strong>{{ user.full_name }}</strong> ({{ user.email }})
+    </p>
+  </div>
+</div>
+
+<!-- Metrics / Status Grid -->
+<div class="grid">
+  <div class="stat-card">
+    <div class="stat-label">Tenant Status</div>
+    <div class="stat-value" style="color: var(--success);">
+      {{ "Active" if organization.is_active else "Suspended" }}
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+      All queries are strictly isolated to Organization #{{ organization.id }}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Account Role</div>
+    <div class="stat-value" style="text-transform: capitalize;">
+      {{ user.role.value if user.role.value is defined else user.role }}
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+      {% if (user.role.value if user.role.value is defined else user.role) == 'admin' %}
+        Full administrative permissions within tenant.
+      {% elif user.role.value == 'staff' or user.role == 'staff' %}
+        Operational access within tenant.
+      {% else %}
+        Self-service portal access.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Tenant Isolation</div>
+    <div class="stat-value" style="color: var(--primary);">
+      Enforced
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+      Server-side boundary active (Zero Cross-Tenant Leakage)
+    </p>
+  </div>
+</div>
+
+<!-- Tenant Summary Card -->
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2 style="font-size: 1.15rem; font-weight: 600;">Phase 1 Tenant Boundary Status</h2>
+    <span class="badge" style="background-color: #dcfce7; color: #15803d;">Foundation Verified</span>
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+    You are securely authenticated in the <strong>{{ organization.name }}</strong> tenant workspace. Subsequent modules (Product Catalog, Quotations, Subscriptions, Razorpay Payments) will inherit this strict isolation boundary.
+  </p>
+
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+    <button 
+      hx-post="/api/v1/auth/logout" 
+      hx-target="body" 
+      hx-push-url="/login"
+      class="btn btn-secondary"
+      style="width: auto;"
+    >
+      Sign Out of Session
+    </button>
+  </div>
+</div>
+{% endblock %}

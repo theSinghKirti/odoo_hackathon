@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up - Subscription Manager{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+  <div class="card">
+    <h1 class="auth-title">Create Account</h1>
+    <p class="auth-subtitle">Get started with self-service subscription management</p>
+
+    <div id="register-error">
+      {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+      {% endif %}
+    </div>
+
+    <form method="POST" action="/register">
+      <div class="form-group">
+        <label for="full_name" class="form-label">Full Name</label>
+        <input 
+          type="text" 
+          id="full_name" 
+          name="full_name" 
+          class="form-control" 
+          placeholder="Jane Doe" 
+          required 
+          value="{{ full_name or '' }}"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="email" class="form-label">Email Address</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="form-control" 
+          placeholder="jane@company.com" 
+          required 
+          autocomplete="email"
+          value="{{ email or '' }}"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="organization_slug" class="form-label">Organization Slug (Optional)</label>
+        <input 
+          type="text" 
+          id="organization_slug" 
+          name="organization_slug" 
+          class="form-control" 
+          placeholder="brightloop-software"
+          value="{{ organization_slug or 'brightloop-software' }}"
+        >
+        <span class="form-help">Tenant workspace identifier. Defaults to reference tenant.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-control" 
+          placeholder="•••••••••" 
+          required 
+          autocomplete="new-password"
+        >
+        <span class="form-help">
+          Must be more than 8 characters, containing uppercase, lowercase, and a special symbol.
+        </span>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
+        Register as Customer
+      </button>
+    </form>
+
+    <p style="text-align: center; font-size: 0.875rem; margin-top: 1.5rem; color: var(--text-muted);">
+      Already have an account? 
+      <a href="/login" style="color: var(--primary); text-decoration: none; font-weight: 600;">Sign in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
+
