@@ -32,7 +32,9 @@
         type="button" 
         class="btn btn-teal"
         id="btn-add-product"
-        onclick="alert('Create Product modal (F2.2) will be available in next milestone.')"
+        hx-get="/web/products/modal"
+        hx-target="#modal-container"
+        hx-swap="innerHTML"
         style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600;"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -46,7 +48,7 @@
 </div>
 
 <!-- Summary Statistic Cards -->
-<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+<div class="grid" id="catalog-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
   <!-- Card 1: Total Products -->
   <div class="stat-card">
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -215,4 +217,23 @@
     </tbody>
   </table>
 </div>
+
+<!-- Modal Container & Notifications -->
+<div id="modal-container"></div>
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+  function closeModal() {
+    const container = document.getElementById('modal-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+</script>
 {% endblock %}

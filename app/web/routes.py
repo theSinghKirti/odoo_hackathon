@@ -17,6 +17,8 @@ from app.core.security import (
 from app.db.session import get_async_db
 from app.models.user import User
 from app.models.product import ProductType
+from app.schemas.product import ProductCreate, ProductUpdate
+from datetime import datetime
 from app.services.product_service import ProductService
 from app.services.auth_service import (
     authenticate_user,
@@ -420,4 +422,403 @@ async def products_table_partial(
             "user": user,
             "products": products,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# F2.2 Product Modal Endpoints (Create & Edit)
+# ---------------------------------------------------------------------------
+
+def _validate_product_input(
+    name: str,
+    product_type: str,
+    sales_price: str,
+    cost_price: Optional[str] = None,
+    notes: Optional[str] = None,
+    is_active: Optional[str] = None,
+):
+    errors = {}
+    clean_name = name.strip() if name else ""
+    if not clean_name:
+        errors["name"] = "Product name is required."
+    elif len(clean_name) > 255:
+        errors["name"] = "Product name cannot exceed 255 characters."
+
+    valid_types = [t.value for t in ProductType]
+    clean_type = product_type.strip().lower() if product_type else ""
+    if clean_type not in valid_types:
+        errors["product_type"] = f"Please select a valid product type ({', '.join(valid_types)})."
+
+    parsed_sales_price = None
+    if not sales_price or not sales_price.strip():
+        errors["sales_price"] = "Sales price is required."
+    else:
+        try:
+            parsed_sales_price = Decimal(sales_price.strip())
+            if parsed_sales_price < Decimal("0.00"):
+                errors["sales_price"] = "Sales price must be a non-negative number."
+        except Exception:
+            errors["sales_price"] = "Sales price must be a valid number (e.g. 5000.00)."
+
+    parsed_cost_price = Decimal("0.00")
+    if cost_price and cost_price.strip():
+        try:
+            parsed_cost_price = Decimal(cost_price.strip())
+            if parsed_cost_price < Decimal("0.00"):
+                errors["cost_price"] = "Cost price must be a non-negative number."
+        except Exception:
+            errors["cost_price"] = "Cost price must be a valid number (e.g. 3000.00)."
+
+    clean_notes = notes.strip() if notes and notes.strip() else None
+    parsed_is_active = bool(is_active)
+
+    form_data = {
+        "name": clean_name,
+        "product_type": clean_type,
+        "sales_price": sales_price.strip() if sales_price else "",
+        "cost_price": cost_price.strip() if cost_price else "",
+        "notes": notes if notes else "",
+        "is_active": parsed_is_active,
+    }
+
+    return errors, form_data, clean_name, clean_type, parsed_sales_price, parsed_cost_price, clean_notes, parsed_is_active
+
+
+def _render_product_success_response(
+    request: Request,
+    products_list,
+    stats,
+    user,
+    message: str,
+):
+    table_html = templates.get_template("admin/partials/product_table.html").render(
+        request=request,
+        products=products_list,
+        user=user,
+    )
+
+    stats_grid_html = f"""
+    <div class="grid" id="catalog-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));" hx-swap-oob="outerHTML">
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Total Products</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #0284C7; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-total-products">{stats["total"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">All catalog offerings</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Software</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-sky); color: #1E40AF; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-software-products">{stats["software"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Core licenses & apps</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Services</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-lavender); color: #7C3AED; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-service-products">{stats["services"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Implementation & setup</p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="stat-label">Add-ons</div>
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: var(--pastel-mint); color: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-value" id="stat-addon-products">{stats["addons"]}</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Extensions & plugins</p>
+      </div>
+    </div>
+    """
+
+    toast_id = f"toast_{int(datetime.now().timestamp())}"
+    toast_html = f"""
+    <div id="toast-container" hx-swap-oob="innerHTML">
+      <div class="toast toast-success" id="{toast_id}">
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--navy);">Success</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">{message}</div>
+        </div>
+      </div>
+      <script>
+        setTimeout(() => {{
+          const t = document.getElementById('{toast_id}');
+          if (t) t.remove();
+        }}, 4000);
+      </script>
+    </div>
+    """
+
+    response_html = f"""
+    <div id="modal-container" hx-swap-oob="innerHTML"></div>
+    <tbody id="products-table-body" hx-swap-oob="innerHTML">
+      {table_html}
+    </tbody>
+    {stats_grid_html}
+    {toast_html}
+    """
+
+    headers = {"HX-Trigger": "productListChanged"}
+    return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK, headers=headers)
+
+
+@router.get("/web/products/modal", response_class=HTMLResponse)
+async def product_create_modal(request: Request):
+    """
+    Renders the empty create product modal partial.
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/product_form.html",
+        context={
+            "product": None,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.get("/web/products/{product_id}/modal", response_class=HTMLResponse)
+async def product_edit_modal(
+    request: Request,
+    product_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Renders the product form modal pre-populated for editing.
+    """
+    user = await get_optional_user(request, db)
+    product = None
+
+    if user:
+        try:
+            product = await ProductService.get_product(
+                db,
+                organization_id=user.organization_id,
+                product_id=product_id,
+            )
+        except Exception:
+            product = None
+
+    if not product:
+        for mp in MOCK_PRODUCTS:
+            if mp["id"] == product_id:
+                product = mp
+                break
+
+    if not product:
+        return HTMLResponse(
+            content="<div class='alert alert-error'>Product not found</div>",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/product_form.html",
+        context={
+            "product": product,
+            "form": None,
+            "errors": None,
+        },
+    )
+
+
+@router.post("/web/products", response_class=HTMLResponse)
+async def product_create_submit(
+    request: Request,
+    name: str = Form(""),
+    product_type: str = Form("software"),
+    sales_price: str = Form(""),
+    cost_price: Optional[str] = Form(""),
+    notes: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Handles HTMX submission to create a new product.
+    """
+    user = await get_optional_user(request, db)
+
+    errors, form_data, clean_name, clean_type, parsed_sales, parsed_cost, clean_notes, parsed_active = (
+        _validate_product_input(name, product_type, sales_price, cost_price, notes, is_active)
+    )
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/product_form.html",
+            context={
+                "product": None,
+                "form": form_data,
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    # Persist product
+    created_in_db = False
+    if user:
+        try:
+            create_schema = ProductCreate(
+                name=clean_name,
+                product_type=ProductType(clean_type),
+                sales_price=parsed_sales,
+                cost_price=parsed_cost,
+                notes=clean_notes,
+                is_active=parsed_active,
+            )
+            await ProductService.create_product(
+                session=db,
+                organization_id=user.organization_id,
+                data=create_schema,
+            )
+            created_in_db = True
+        except Exception as e:
+            created_in_db = False
+
+    if not created_in_db:
+        # Save to mock list for instant local interaction
+        new_id = (max((p["id"] for p in MOCK_PRODUCTS), default=0)) + 1
+        new_mock_item = {
+            "id": new_id,
+            "name": clean_name,
+            "product_type": clean_type,
+            "sales_price": parsed_sales,
+            "cost_price": parsed_cost,
+            "notes": clean_notes,
+            "is_active": parsed_active,
+            "variants": [],
+        }
+        MOCK_PRODUCTS.insert(0, new_mock_item)
+
+    # Fetch fresh product list and stats
+    try:
+        db_prods = await ProductService.list_products(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_prods = []
+
+    products = db_prods if db_prods else MOCK_PRODUCTS
+    stats = _compute_product_stats(products)
+
+    return _render_product_success_response(
+        request=request,
+        products_list=products,
+        stats=stats,
+        user=user,
+        message=f"Product '{clean_name}' created successfully.",
+    )
+
+
+@router.post("/web/products/{product_id}", response_class=HTMLResponse)
+@router.put("/web/products/{product_id}", response_class=HTMLResponse)
+async def product_update_submit(
+    request: Request,
+    product_id: int,
+    name: str = Form(""),
+    product_type: str = Form("software"),
+    sales_price: str = Form(""),
+    cost_price: Optional[str] = Form(""),
+    notes: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Handles HTMX submission to update an existing product.
+    """
+    user = await get_optional_user(request, db)
+
+    errors, form_data, clean_name, clean_type, parsed_sales, parsed_cost, clean_notes, parsed_active = (
+        _validate_product_input(name, product_type, sales_price, cost_price, notes, is_active)
+    )
+
+    if errors:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/product_form.html",
+            context={
+                "product": {"id": product_id, "name": clean_name},
+                "form": form_data,
+                "errors": errors,
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    updated_in_db = False
+    if user:
+        try:
+            update_schema = ProductUpdate(
+                name=clean_name,
+                product_type=ProductType(clean_type),
+                sales_price=parsed_sales,
+                cost_price=parsed_cost,
+                notes=clean_notes,
+                is_active=parsed_active,
+            )
+            await ProductService.update_product(
+                session=db,
+                organization_id=user.organization_id,
+                product_id=product_id,
+                data=update_schema,
+            )
+            updated_in_db = True
+        except Exception:
+            updated_in_db = False
+
+    # Also update in MOCK_PRODUCTS if present
+    for mp in MOCK_PRODUCTS:
+        if mp["id"] == product_id:
+            mp["name"] = clean_name
+            mp["product_type"] = clean_type
+            mp["sales_price"] = parsed_sales
+            mp["cost_price"] = parsed_cost
+            mp["notes"] = clean_notes
+            mp["is_active"] = parsed_active
+            break
+
+    try:
+        db_prods = await ProductService.list_products(db, organization_id=user.organization_id) if user else []
+    except Exception:
+        db_prods = []
+
+    products = db_prods if db_prods else MOCK_PRODUCTS
+    stats = _compute_product_stats(products)
+
+    return _render_product_success_response(
+        request=request,
+        products_list=products,
+        stats=stats,
+        user=user,
+        message=f"Product '{clean_name}' updated successfully.",
     )

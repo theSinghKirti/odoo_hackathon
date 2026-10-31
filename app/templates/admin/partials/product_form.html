@@ -1,0 +1,195 @@
+<div class="modal-backdrop" id="product-modal-backdrop" onclick="if (event.target === this) closeModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-title" class="modal-title">
+          {{ "Edit Product" if product and product.id else "Create New Product" }}
+        </h2>
+        <p class="modal-subtitle">
+          {{ "Update product information and pricing." if product and product.id else "Add a new product to your subscription catalog." }}
+        </p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeModal();" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form 
+      id="product-form"
+      hx-post="{{ '/web/products/' ~ product.id if product and product.id else '/web/products' }}"
+      hx-target="#product-modal-backdrop"
+      hx-swap="outerHTML"
+      hx-indicator="#modal-spinner"
+    >
+      <div class="modal-body">
+        
+        {% if errors and errors._global %}
+          <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+            {{ errors._global }}
+          </div>
+        {% endif %}
+
+        <div class="form-grid-2">
+          <!-- Row 1: Product Name (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="product-name" class="form-label">
+              Product Name <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <input 
+              type="text" 
+              name="name" 
+              id="product-name" 
+              class="form-input {% if errors and errors.name %}is-invalid{% endif %}" 
+              placeholder="Enter product name" 
+              value="{{ form.name if form and form.name is defined else (product.name if product else '') }}" 
+              required
+            />
+            {% if errors and errors.name %}
+              <div class="form-error">{{ errors.name }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 2 Col 1: Product Type -->
+          <div class="form-group">
+            <label for="product-type" class="form-label">
+              Product Type <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            {% set selected_type = form.product_type if form and form.product_type is defined else (product.product_type.value if (product and product.product_type and product.product_type.value is defined) else (product.product_type if product else 'software')) %}
+            <select 
+              name="product_type" 
+              id="product-type" 
+              class="form-select {% if errors and errors.product_type %}is-invalid{% endif %}" 
+              required
+            >
+              <option value="software" {% if selected_type|lower == 'software' %}selected{% endif %}>Software</option>
+              <option value="service" {% if selected_type|lower == 'service' %}selected{% endif %}>Service</option>
+              <option value="addon" {% if selected_type|lower == 'addon' %}selected{% endif %}>Add-on</option>
+              <option value="physical" {% if selected_type|lower == 'physical' %}selected{% endif %}>Physical</option>
+            </select>
+            {% if errors and errors.product_type %}
+              <div class="form-error">{{ errors.product_type }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 2 Col 2: Product Status (Toggle Switch) -->
+          <div class="form-group">
+            <label class="form-label">Product Status</label>
+            {% set is_act = form.is_active if form and form.is_active is defined else (product.is_active if product and product.is_active is defined else True) %}
+            <div class="toggle-container">
+              <label class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  name="is_active" 
+                  id="product-is-active" 
+                  value="true" 
+                  {% if is_act %}checked{% endif %}
+                  onchange="document.getElementById('status-toggle-label').innerText = this.checked ? 'Active' : 'Inactive';"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="status-toggle-label">
+                {{ "Active" if is_act else "Inactive" }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Row 3 Col 1: Sales Price -->
+          <div class="form-group">
+            <label for="product-sales-price" class="form-label">
+              Sales Price (INR) <span class="required-star" style="color: var(--danger);">*</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol">₹</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                name="sales_price" 
+                id="product-sales-price" 
+                class="form-input {% if errors and errors.sales_price %}is-invalid{% endif %}" 
+                placeholder="0.00" 
+                value="{{ form.sales_price if form and form.sales_price is defined else (product.sales_price if product else '') }}" 
+                required
+              />
+            </div>
+            {% if errors and errors.sales_price %}
+              <div class="form-error">{{ errors.sales_price }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 3 Col 2: Cost Price -->
+          <div class="form-group">
+            <label for="product-cost-price" class="form-label">
+              Cost Price (INR) <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <div class="currency-input-wrapper">
+              <span class="currency-symbol">₹</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                name="cost_price" 
+                id="product-cost-price" 
+                class="form-input {% if errors and errors.cost_price %}is-invalid{% endif %}" 
+                placeholder="0.00" 
+                value="{{ form.cost_price if form and form.cost_price is defined else (product.cost_price if product and product.cost_price is not none else '') }}" 
+              />
+            </div>
+            {% if errors and errors.cost_price %}
+              <div class="form-error">{{ errors.cost_price }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Row 4: Internal Notes (Full Width) -->
+          <div class="form-group form-col-full">
+            <label for="product-notes" class="form-label">
+              Internal Notes <span style="font-weight: 400; color: var(--text-muted);">(Optional)</span>
+            </label>
+            <textarea 
+              name="notes" 
+              id="product-notes" 
+              class="form-textarea {% if errors and errors.notes %}is-invalid{% endif %}" 
+              rows="3" 
+              placeholder="Add product description or internal notes"
+            >{{ form.notes if form and form.notes is defined else (product.notes if product and product.notes else '') }}</textarea>
+            {% if errors and errors.notes %}
+              <div class="form-error">{{ errors.notes }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer Actions -->
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-outline" 
+          onclick="closeModal();"
+        >
+          Cancel
+        </button>
+
+        <button 
+          type="submit" 
+          class="btn btn-teal" 
+          id="btn-submit-product"
+          style="display: inline-flex; align-items: center; gap: 8px;"
+        >
+          <span>{{ "Save Changes" if product and product.id else "Create Product" }}</span>
+          <span class="htmx-indicator" id="modal-spinner" style="display: inline-block;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
