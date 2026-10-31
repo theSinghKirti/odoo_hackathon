@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+
+{% block title %}Subly — Modern Neobrutalism Subscription & Billing OS{% endblock %}
+
+{% block content %}
+<!-- 1. STICKY NEOBRUTALISM NAVBAR -->
+<header class="landing-navbar">
+  <div style="display: flex; align-items: center; gap: 32px;">
+    <!-- Logo -->
+    <a href="/" class="auth-brand" style="margin-bottom: 0;">
+      <div class="auth-brand-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <span class="auth-brand-text">Subly</span>
+    </a>
+
+    <!-- Nav Links -->
+    <ul class="landing-nav-links">
+      <li><a href="#workspaces">Workspaces</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Plans &amp; Pricing</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px;">
+    {% if user %}
+      <a href="/dashboard" class="btn btn-primary btn-sm">
+        👑 Go to Dashboard &rarr;
+      </a>
+      <a href="/logout" class="btn btn-outline btn-sm">
+        Sign Out
+      </a>
+    {% else %}
+      <a href="/login/customer" class="btn btn-outline btn-sm" title="Customer Self-Service Portal">
+        👤 Customer Portal
+      </a>
+      <a href="/login" class="btn btn-primary btn-sm" title="Sign in as Admin, Staff, or Customer">
+        ⚡ Workspace Login &rarr;
+      </a>
+    {% endif %}
+  </div>
+</header>
+
+<!-- 2. HERO SECTION -->
+<section class="landing-hero">
+  <!-- Pill Tag -->
+  <div class="hero-pill-badge">
+    ⚡ The Neobrutalism Subscription &amp; Billing Operating System
+  </div>
+
+  <!-- Big Bold Headline -->
+  <h1 class="hero-headline">
+    Manage Subscriptions, Recurring Billing &amp; Invoices with <span class="highlight-teal">Absolute Clarity</span>.
+  </h1>
+
+  <!-- Subtitle -->
+  <p class="hero-subheadline">
+    Built for modern SaaS, high-growth agencies, and service enterprises. Tailored role-based isolation for 
+    <strong>Admins</strong>, <strong>Staff</strong>, and <strong>Customers</strong> with automated billing sweeps and multi-method payments.
+  </p>
+
+  <!-- CTA Buttons Group -->
+  <div class="hero-cta-group">
+    <a href="/login" class="btn btn-primary btn-lg">
+      🚀 Launch Interactive Demo &rarr;
+    </a>
+    <a href="/login/customer" class="btn btn-secondary btn-lg">
+      👤 Customer Portal Demo
+    </a>
+    <a href="/login/staff" class="btn btn-outline btn-lg">
+      💼 Staff Workspace
+    </a>
+  </div>
+
+  <!-- Interactive Hero Mock Card Showcase -->
+  <div class="hero-mock-card">
+    <div class="mock-window-header">
+      <div class="window-dots">
+        <div class="window-dot red"></div>
+        <div class="window-dot yellow"></div>
+        <div class="window-dot green"></div>
+      </div>
+      <div style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #000000;">
+        Brightloop Software &middot; Live Multi-Tenant Workspace #1 (Neon PostgreSQL)
+      </div>
+      <span class="badge badge-active" style="background-color: var(--neo-mint);">100% Operational</span>
+    </div>
+
+    <div class="mock-content-grid">
+      <!-- Mock Sidebar -->
+      <div class="mock-sidebar">
+        <div style="font-size: 0.725rem; font-weight: 900; text-transform: uppercase; color: #4B5563; margin-bottom: 6px;">Workspace Navigation</div>
+        <div style="background-color: var(--main); border: 2px solid #000; box-shadow: 2px 2px 0 0 #000; border-radius: 4px; padding: 6px 10px; font-weight: 800; font-size: 0.8rem;">
+          📊 Dashboard
+        </div>
+        <div style="padding: 6px 10px; font-weight: 700; font-size: 0.8rem; border: 2px solid transparent;">
+          👥 Customers (12)
+        </div>
+        <div style="padding: 6px 10px; font-weight: 700; font-size: 0.8rem; border: 2px solid transparent;">
+          📦 Products &amp; Plans
+        </div>
+        <div style="padding: 6px 10px; font-weight: 700; font-size: 0.8rem; border: 2px solid transparent;">
+          🔄 Subscriptions (34)
+        </div>
+        <div style="padding: 6px 10px; font-weight: 700; font-size: 0.8rem; border: 2px solid transparent;">
+          💳 Invoices &amp; Payments
+        </div>
+      </div>
+
+      <!-- Mock Main Area -->
+      <div class="mock-main">
+        <!-- Metric Grid -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+          <div style="background: #FFFFFF; border: 2px solid #000; box-shadow: 3px 3px 0 0 #000; border-radius: 5px; padding: 12px;">
+            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #4B5563;">Annual Recurring Revenue</div>
+            <div style="font-size: 1.45rem; font-weight: 900; color: #000000; margin-top: 4px;">$48,920.00</div>
+          </div>
+          <div style="background: #FFFFFF; border: 2px solid #000; box-shadow: 3px 3px 0 0 #000; border-radius: 5px; padding: 12px;">
+            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #4B5563;">Active Subscriptions</div>
+            <div style="font-size: 1.45rem; font-weight: 900; color: #000000; margin-top: 4px;">34 Live</div>
+          </div>
+          <div style="background: #FFFFFF; border: 2px solid #000; box-shadow: 3px 3px 0 0 #000; border-radius: 5px; padding: 12px;">
+            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #4B5563;">Collection Health</div>
+            <div style="font-size: 1.45rem; font-weight: 900; color: #22C55E; margin-top: 4px;">99.4% Succeeded</div>
+          </div>
+        </div>
+
+        <!-- Mini Active Contracts Table -->
+        <div style="background: #FFFFFF; border: 2px solid #000; box-shadow: 3px 3px 0 0 #000; border-radius: 5px; overflow: hidden;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.785rem;">
+            <thead>
+              <tr style="background-color: var(--neo-yellow); border-bottom: 2px solid #000;">
+                <th style="padding: 8px 10px; text-align: left; font-weight: 900; border-right: 1.5px solid #000;">Contract #</th>
+                <th style="padding: 8px 10px; text-align: left; font-weight: 900; border-right: 1.5px solid #000;">Client</th>
+                <th style="padding: 8px 10px; text-align: left; font-weight: 900; border-right: 1.5px solid #000;">Plan</th>
+                <th style="padding: 8px 10px; text-align: left; font-weight: 900; border-right: 1.5px solid #000;">Billing</th>
+                <th style="padding: 8px 10px; text-align: right; font-weight: 900;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1.5px solid #000;">
+                <td style="padding: 8px 10px; font-weight: 800; border-right: 1px solid #E5E7EB;">SUB-2026-0001</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">Acme Innovations Ltd</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">Subly Cloud Platform</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB; font-weight: 800;">$2,499.00/mo</td>
+                <td style="padding: 8px 10px; text-align: right;"><span class="badge badge-active" style="font-size: 0.65rem;">Active</span></td>
+              </tr>
+              <tr style="border-bottom: 1.5px solid #000;">
+                <td style="padding: 8px 10px; font-weight: 800; border-right: 1px solid #E5E7EB;">SUB-2026-0002</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">BlueSky Tech Labs</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">Developer Sandbox</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB; font-weight: 800;">$999.00/mo</td>
+                <td style="padding: 8px 10px; text-align: right;"><span class="badge badge-active" style="font-size: 0.65rem;">Active</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 10px; font-weight: 800; border-right: 1px solid #E5E7EB;">SUB-2026-0003</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">FinTech Prime Corp</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB;">Enterprise Annual</td>
+                <td style="padding: 8px 10px; border-right: 1px solid #E5E7EB; font-weight: 800;">$4,800.00/yr</td>
+                <td style="padding: 8px 10px; text-align: right;"><span class="badge badge-paused" style="font-size: 0.65rem;">Paused</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. THREE WORKSPACES / ROLES BENTO SECTION -->
+<section id="workspaces" class="landing-section">
+  <div style="text-align: center; max-width: 760px; margin: 0 auto;">
+    <div class="section-tag">Role-Based Architecture</div>
+    <h2 class="section-title">Three Tailored Workspaces. Zero Clutter.</h2>
+    <p class="section-sub" style="margin: 0 auto;">
+      Every user type gets their dedicated interface with strict multi-tenant access control and permissions.
+    </p>
+  </div>
+
+  <div class="roles-grid">
+    <!-- Role 1: Admin -->
+    <div class="role-showcase-card" style="border-color: #000000;">
+      <div>
+        <div class="role-card-header">
+          <div class="role-avatar-badge" style="background-color: var(--neo-lavender);">👑</div>
+          <span class="badge badge-admin">Full System Access</span>
+        </div>
+        <h3 style="font-size: 1.45rem; font-weight: 900; margin-bottom: 6px;">Administrator Panel</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 600;">
+          The executive control room for overall business operations, product configurations, and system health.
+        </p>
+        
+        <ul class="role-feature-list">
+          <li><span>✓</span> Full user &amp; staff provisioning</li>
+          <li><span>✓</span> Recurring plans &amp; product variants</li>
+          <li><span>✓</span> Multi-currency tax &amp; discount rules</li>
+          <li><span>✓</span> Revenue analytics &amp; churn tracking</li>
+          <li><span>✓</span> Automated billing &amp; renewal sweeps</li>
+        </ul>
+      </div>
+
+      <a href="/login/admin" class="btn btn-primary" style="width: 100%; margin-top: var(--space-4);">
+        👑 Open Admin Panel &rarr;
+      </a>
+    </div>
+
+    <!-- Role 2: Staff -->
+    <div class="role-showcase-card" style="background-color: #FFFDF0;">
+      <div>
+        <div class="role-card-header">
+          <div class="role-avatar-badge" style="background-color: var(--neo-yellow);">💼</div>
+          <span class="badge badge-staff">Daily Operations</span>
+        </div>
+        <h3 style="font-size: 1.45rem; font-weight: 900; margin-bottom: 6px;">Staff Operations Hub</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 600;">
+          Engineered for sales reps, account managers, and billing operations handling daily customer requests.
+        </p>
+        
+        <ul class="role-feature-list">
+          <li><span>✓</span> Customer profile &amp; billing history</li>
+          <li><span>✓</span> Quotation builder &amp; 1-click subscription</li>
+          <li><span>✓</span> Subscription pause, renew &amp; early close</li>
+          <li><span>✓</span> Invoice issuance &amp; printable PDF layout</li>
+          <li><span>✓</span> Offline payment recorder (bank/wire/cheque)</li>
+        </ul>
+      </div>
+
+      <a href="/login/staff" class="btn btn-secondary" style="width: 100%; margin-top: var(--space-4);">
+        💼 Open Staff Workspace &rarr;
+      </a>
+    </div>
+
+    <!-- Role 3: Customer -->
+    <div class="role-showcase-card" style="background-color: #F0FDF4;">
+      <div>
+        <div class="role-card-header">
+          <div class="role-avatar-badge" style="background-color: var(--neo-mint);">👤</div>
+          <span class="badge badge-customer">Customer Portal</span>
+        </div>
+        <h3 style="font-size: 1.45rem; font-weight: 900; margin-bottom: 6px;">Customer Self-Service</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 600;">
+          A transparent client portal where subscribers can manage contracts, review quotes, and settle invoices.
+        </p>
+        
+        <ul class="role-feature-list">
+          <li><span>✓</span> Available plans catalog &amp; quote requests</li>
+          <li><span>✓</span> Review &amp; approve incoming quotations</li>
+          <li><span>✓</span> Self-service subscription management</li>
+          <li><span>✓</span> Invoices archive &amp; printable receipts</li>
+          <li><span>✓</span> Online payment gateway (Razorpay checkout)</li>
+        </ul>
+      </div>
+
+      <a href="/login/customer" class="btn btn-outline" style="width: 100%; margin-top: var(--space-4); background-color: #FFFFFF;">
+        👤 Open Customer Portal &rarr;
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 4. STATS BANNER -->
+<section class="stats-banner">
+  <div class="stats-container">
+    <div>
+      <div class="stat-metric-number">100%</div>
+      <div class="stat-metric-label">ACID Compliant DB</div>
+    </div>
+    <div>
+      <div class="stat-metric-number">3</div>
+      <div class="stat-metric-label">Tailored Workspaces</div>
+    </div>
+    <div>
+      <div class="stat-metric-number">0.00</div>
+      <div class="stat-metric-label">Decimal Rounding Error</div>
+    </div>
+    <div>
+      <div class="stat-metric-number">&lt; 15ms</div>
+      <div class="stat-metric-label">FastAPI Response Time</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. BENTO BOX FEATURES -->
+<section id="features" class="landing-section">
+  <div style="text-align: center; max-width: 760px; margin: 0 auto;">
+    <div class="section-tag">Enterprise Capabilities</div>
+    <h2 class="section-title">Everything Needed to Scale Recurring Revenue</h2>
+    <p class="section-sub" style="margin: 0 auto;">
+      Built from the ground up with high reliability, strict tenant isolation, and modern web standards.
+    </p>
+  </div>
+
+  <div class="bento-grid">
+    <!-- Feature 1 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: var(--neo-yellow);">⚡</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Automated Billing Sweeps</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          Automated background jobs continuously inspect billing schedules, generate invoices on cycle dates, and process contract renewals with zero manual intervention.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Cron &middot; Asynchronous &middot; Auto-Retry</div>
+    </div>
+
+    <!-- Feature 2 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: var(--neo-cyan);">🛡️</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Multi-Tenant Isolation</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          Every query, customer record, quotation, invoice, and payment is strictly bound to its tenant organization ID, ensuring zero data leakage across companies.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Row-Level &middot; Cryptographic &middot; Scoped</div>
+    </div>
+
+    <!-- Feature 3 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: var(--neo-mint);">🔄</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Full Lifecycle Tracker</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          State-machine managed subscriptions moving cleanly across Draft, Quotation, Confirmed, Active, Paused, and Closed states with pause limits and grace periods.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Pause &middot; Renew &middot; Close &middot; Traceable</div>
+    </div>
+
+    <!-- Feature 4 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: var(--neo-coral);">💳</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Multi-Method Payments</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          Accept payments online via Razorpay Gateway with webhook verification, or record offline transactions (wire transfer, bank deposit, cheque, cash) with ledger receipts.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Razorpay &middot; Wire &middot; Cheque &middot; Cash</div>
+    </div>
+
+    <!-- Feature 5 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: var(--neo-lavender);">📊</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Exact Decimal Math</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          Never lose a cent to binary floating-point errors. Every price, subtotal, tax line, and discount rule is calculated using rigorous Python `Decimal` and database `Numeric(12, 2)`.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Fixed &middot; Percent &middot; Tax Rules &middot; Audit</div>
+    </div>
+
+    <!-- Feature 6 -->
+    <div class="bento-card">
+      <div>
+        <div class="bento-icon-box" style="background-color: #FED7AA;">📄</div>
+        <h3 style="font-size: 1.25rem; font-weight: 900; margin-bottom: 6px;">Printable Statements</h3>
+        <p style="font-size: 0.885rem; color: var(--text-secondary); font-weight: 500;">
+          Generate formal PDF-ready invoices and quotations with customer business info, VAT/GST breakdowns, line items, and payment instructions.
+        </p>
+      </div>
+      <div style="margin-top: 14px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">Print Ready &middot; Tax Breakdown &middot; Clean CSS</div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. PRICING & SUBSCRIPTION PLANS SECTION -->
+<section id="pricing" class="landing-section">
+  <div style="text-align: center; max-width: 760px; margin: 0 auto;">
+    <div class="section-tag" style="background-color: var(--neo-mint);">Transparent Plans</div>
+    <h2 class="section-title">Pre-Configured Plans &amp; Live Rates</h2>
+    <p class="section-sub" style="margin: 0 auto;">
+      All subscription plans support automatic renewal, flexible billing intervals, and custom addon variants.
+    </p>
+  </div>
+
+  <div class="pricing-grid">
+    {% for plan in plans %}
+      <div class="pricing-card {% if loop.index == 2 or plan.name|lower == 'pro growth monthly' %}featured{% endif %}">
+        {% if loop.index == 2 or plan.name|lower == 'pro growth monthly' %}
+          <div style="position: absolute; top: -14px; right: 24px; background: #000000; color: #FFFFFF; font-size: 0.725rem; font-weight: 900; text-transform: uppercase; padding: 4px 12px; border-radius: 4px; box-shadow: 2px 2px 0 0 #000000;">
+            Most Popular
+          </div>
+        {% endif %}
+
+        <div>
+          <div style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #000000; margin-bottom: 8px;">
+            {{ plan.billing_interval.value|title }} Plan
+          </div>
+          <h3 style="font-size: 1.65rem; font-weight: 900; color: #000000; margin-bottom: 8px;">
+            {{ plan.name }}
+          </h3>
+          <p style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 600; min-height: 40px;">
+            {{ plan.description or 'Complete recurring subscription plan with full service entitlements.' }}
+          </p>
+
+          <div class="plan-price-block">
+            <span class="plan-price-value">{{ plan.currency }} {{ "%.2f"|format(plan.base_price) }}</span>
+            <span class="plan-price-period">/ {{ plan.billing_interval.value }}</span>
+          </div>
+
+          <div style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 10px;">Included Entitlements:</div>
+          <ul class="role-feature-list" style="margin-bottom: 24px;">
+            <li><span>✓</span> Full API &amp; Web access</li>
+            <li><span>✓</span> Automated invoice on renewal</li>
+            <li><span>✓</span> {% if plan.allow_pause %}Pause subscription permitted{% else %}Continuous billing{% endif %}</li>
+            <li><span>✓</span> {% if plan.allow_renewal %}Auto-renewal enabled{% else %}Manual renewal contract{% endif %}</li>
+          </ul>
+        </div>
+
+        <a href="/login/customer" class="btn {% if loop.index == 2 or plan.name|lower == 'pro growth monthly' %}btn-dark{% else %}btn-primary{% endif %}" style="width: 100%;">
+          Get Started &rarr;
+        </a>
+      </div>
+    {% else %}
+      <!-- Fallback Default Pricing Cards if empty -->
+      <div class="pricing-card">
+        <div>
+          <h3 style="font-size: 1.5rem; font-weight: 900;">Developer Sandbox</h3>
+          <div class="plan-price-block">
+            <span class="plan-price-value">$999.00</span>
+            <span class="plan-price-period">/ month</span>
+          </div>
+        </div>
+        <a href="/login/customer" class="btn btn-primary" style="width: 100%;">Select Plan</a>
+      </div>
+      <div class="pricing-card featured">
+        <div>
+          <h3 style="font-size: 1.5rem; font-weight: 900;">Subly Cloud Platform</h3>
+          <div class="plan-price-block">
+            <span class="plan-price-value">$2,499.00</span>
+            <span class="plan-price-period">/ month</span>
+          </div>
+        </div>
+        <a href="/login/customer" class="btn btn-dark" style="width: 100%;">Select Plan</a>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- 7. FAQ SECTION -->
+<section id="faq" class="landing-section">
+  <div style="text-align: center; max-width: 760px; margin: 0 auto;">
+    <div class="section-tag" style="background-color: var(--neo-yellow);">Got Questions?</div>
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <p class="section-sub" style="margin: 0 auto;">
+      Clear answers on multi-tenancy, billing automation, and payment gateways.
+    </p>
+  </div>
+
+  <div class="faq-grid">
+    <div class="faq-card">
+      <h4 class="faq-question">How does multi-tenant isolation work?</h4>
+      <p class="faq-answer">
+        Every organization operates in strict logical isolation. All database models carry an `organization_id` foreign key, and all queries are automatically scoped so no organization can ever view or mutate another tenant's data.
+      </p>
+    </div>
+
+    <div class="faq-card">
+      <h4 class="faq-question">How are offline payments handled?</h4>
+      <p class="faq-answer">
+        Staff and Admin users can log manual settlements (wire transfers, cheques, cash deposits) against confirmed invoices. Recording payments automatically credits the invoice balance and transitions it to `Paid` status.
+      </p>
+    </div>
+
+    <div class="faq-card">
+      <h4 class="faq-question">Can customers pay invoices online?</h4>
+      <p class="faq-answer">
+        Yes! The Customer Portal includes a built-in Razorpay checkout integration with secure HMAC-SHA256 signature verification for instant credit card and digital payment settlements.
+      </p>
+    </div>
+
+    <div class="faq-card">
+      <h4 class="faq-question">What credentials should I use to test the live demo?</h4>
+      <p class="faq-answer">
+        The database is pre-seeded with live accounts. Use <strong>admin@brightloop.io</strong> for the Admin Panel, <strong>marcus.staff@brightloop.io</strong> for the Staff Workspace, and <strong>billing@acmecloud.io</strong> for the Customer Portal.
+      </p>
+    </div>
+  </div>
+
+  <!-- 8. FULL WIDTH CTA BANNER -->
+  <div class="landing-cta-banner">
+    <h2 style="font-size: 2.25rem; font-weight: 900; color: #000000; margin-bottom: 12px; letter-spacing: -0.025em;">
+      Ready to Streamline Your Subscription Revenue?
+    </h2>
+    <p style="font-size: 1.05rem; font-weight: 600; color: #000000; max-width: 600px; margin: 0 auto 24px;">
+      Explore the live workspaces for Admins, Staff, and Customers right now with pre-seeded demo data.
+    </p>
+    <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+      <a href="/login" class="btn btn-dark btn-lg">
+        ⚡ Launch Demo Workspace &rarr;
+      </a>
+      <a href="/register?role=admin" class="btn btn-outline btn-lg" style="background-color: #FFFFFF;">
+        Register Company
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 9. FOOTER -->
+<footer class="landing-footer">
+  <div class="landing-footer-container">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="auth-brand-logo" style="width: 32px; height: 32px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <span style="font-weight: 900; font-size: 1.15rem; color: #000000;">Subly</span>
+      <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-left: 8px;">
+        &copy; 2026 Subly SaaS Inc. Built with FastAPI &amp; Neobrutalism.
+      </span>
+    </div>
+
+    <div style="display: flex; gap: 20px; font-size: 0.85rem; font-weight: 700;">
+      <a href="/login?role=admin" style="color: #000000;">Admin</a>
+      <a href="/login?role=staff" style="color: #000000;">Staff</a>
+      <a href="/login?role=customer" style="color: #000000;">Customer</a>
+      <a href="/login" style="color: #000000;">Sign In</a>
+    </div>
+  </div>
+</footer>
+{% endblock %}

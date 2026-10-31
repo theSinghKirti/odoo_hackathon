@@ -15,11 +15,13 @@ async def test_health_check_endpoint(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_home_page_redirects_unauthenticated(client: AsyncClient):
-    """GET / redirects unauthenticated visitor to /login."""
-    response = await client.get("/", follow_redirects=False)
-    assert response.status_code in (302, 307)
-    assert response.headers["location"] == "/login"
+async def test_home_page_renders_landing_page(client: AsyncClient):
+    """GET / renders public Neobrutalism landing page."""
+    response = await client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Subly" in response.text
+    assert "Workspaces" in response.text
 
 
 @pytest.mark.asyncio

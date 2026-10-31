@@ -12,7 +12,7 @@
   {% block head %}{% endblock %}
 </head>
 <body>
-  {% if user %}
+  {% if user and not is_landing %}
     <!-- ================= AUTHENTICATED APP SHELL ================= -->
     <div class="app-shell">
       <!-- Left Sidebar -->

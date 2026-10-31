@@ -86,11 +86,27 @@ async def auth_login_redirect():
 
 
 @router.get("/", response_class=HTMLResponse)
+@router.get("/landing", response_class=HTMLResponse)
 async def home(request: Request, db: AsyncSession = Depends(get_async_db)):
     user = await get_optional_user(request, db)
-    if user:
-        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    stmt = (
+        select(SubscriptionPlan)
+        .where(SubscriptionPlan.is_active == True)
+        .order_by(SubscriptionPlan.base_price.asc())
+        .limit(6)
+    )
+    result = await db.execute(stmt)
+    plans = result.scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="landing.html",
+        context={
+            "user": user,
+            "plans": plans,
+            "is_landing": True,
+        },
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)
