@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.Column('tax_amount', sa.Numeric(precision=12, scale=2), nullable=False, server_default='0.00'),
         sa.Column('discount_amount', sa.Numeric(precision=12, scale=2), nullable=False, server_default='0.00'),
         sa.Column('line_total', sa.Numeric(precision=12, scale=2), nullable=False, server_default='0.00'),
-        sa.Column('is_addon', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+        sa.Column('is_addon', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
         sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),

@@ -29,7 +29,7 @@
           Join the next generation of <span class="highlight-teal">SaaS subscription</span> billing.
         </h2>
         <p class="auth-description">
-          Set up quotes, automate renewal cycles, and provide your clients with a self-service customer portal.
+          Automate recurring cycles, manage dynamic multi-variant products, and deliver seamless client self-service.
         </p>
 
         <!-- Feature Rows -->
@@ -58,7 +58,7 @@
             </div>
             <div class="auth-feature-text">
               <h4>Role-Based Access</h4>
-              <p>Granular privileges for Admin, Staff, and Customers.</p>
+              <p>Tailored portals for Admin owners and self-service Customers.</p>
             </div>
           </div>
 
@@ -77,12 +77,16 @@
       </div>
 
       <!-- Preview Card Decorator -->
-      <div class="auth-preview-badge-card">
+      <div class="auth-preview-badge-card" id="role-preview-card">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div style="width: 10px; height: 10px; border-radius: 50%; background-color: var(--primary-teal);"></div>
-          <span style="font-size: 0.825rem; font-weight: 600; color: var(--navy);">Self-Service Registration</span>
+          <span id="role-preview-label" style="font-size: 0.825rem; font-weight: 600; color: var(--navy);">
+            {% if active_tab == 'admin' %}Organization Onboarding{% else %}Customer Portal Registration{% endif %}
+          </span>
         </div>
-        <span class="badge badge-customer">Customer Role</span>
+        <span class="badge {% if active_tab == 'admin' %}badge-admin{% else %}badge-customer{% endif %}" id="role-preview-badge">
+          {% if active_tab == 'admin' %}Admin Role · New Tenant{% else %}Customer Role{% endif %}
+        </span>
       </div>
     </div>
 
@@ -93,9 +97,34 @@
         <span>Already have an account? <a href="/login" style="font-weight: 600;">Sign in</a></span>
       </div>
 
+      <!-- Role Selector Tabs -->
+      <div style="display: flex; gap: 8px; margin-bottom: var(--space-4); background-color: var(--bg-hover); padding: 4px; border-radius: var(--radius-md);">
+        <button 
+          type="button" 
+          id="tab-btn-customer" 
+          onclick="setRoleTab('customer')"
+          style="flex: 1; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; {% if active_tab != 'admin' %}background: var(--bg-surface); color: var(--primary-teal); box-shadow: var(--shadow-sm);{% else %}background: transparent; color: var(--text-muted);{% endif %}"
+        >
+          👤 Customer Portal
+        </button>
+        <button 
+          type="button" 
+          id="tab-btn-admin" 
+          onclick="setRoleTab('admin')"
+          style="flex: 1; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; {% if active_tab == 'admin' %}background: var(--bg-surface); color: var(--primary-teal); box-shadow: var(--shadow-sm);{% else %}background: transparent; color: var(--text-muted);{% endif %}"
+        >
+          🏢 Admin / Company
+        </button>
+      </div>
+
+      <!-- Header -->
       <div class="auth-header">
-        <h1 class="auth-title">Create Account</h1>
-        <p class="auth-subtitle">Join your organization's subscription portal</p>
+        <h1 class="auth-title" id="form-heading">
+          {% if active_tab == 'admin' %}Register Your Company{% else %}Create Customer Account{% endif %}
+        </h1>
+        <p class="auth-subtitle" id="form-subheading">
+          {% if active_tab == 'admin' %}Set up a new organization workspace to manage products, quotes & subscriptions{% else %}Join your organization's subscription and billing portal{% endif %}
+        </p>
       </div>
 
       <!-- Error / Alert Message -->
@@ -112,11 +141,37 @@
         {% endif %}
       </div>
 
-      <!-- Registration Form -->
-      <form method="POST" action="/register">
-        <!-- Full Name -->
+      <!-- Unified Dynamic Form -->
+      <form method="POST" action="/register" id="register-form">
+        <input type="hidden" name="register_type" id="register_type" value="{{ active_tab or 'customer' }}">
+
+        <!-- ADMIN SPECIFIC FIELD: Organization Name -->
+        <div class="form-group" id="field-group-org-name" style="{% if active_tab != 'admin' %}display: none;{% endif %}">
+          <label for="organization_name" class="form-label">Company / Organization Name <span style="color: var(--danger);">*</span></label>
+          <div class="input-with-icon has-left-icon">
+            <span class="input-icon-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </svg>
+            </span>
+            <input 
+              type="text" 
+              id="organization_name" 
+              name="organization_name" 
+              class="form-control" 
+              placeholder="e.g. Nexus Software Solutions" 
+              value="{{ organization_name or '' }}"
+            >
+          </div>
+          <span class="form-help">Your company's legal or trade name for billing.</span>
+        </div>
+
+        <!-- Full Name (Both Roles) -->
         <div class="form-group">
-          <label for="full_name" class="form-label">Full Name</label>
+          <label for="full_name" class="form-label" id="label-full-name">
+            {% if active_tab == 'admin' %}Admin Full Name{% else %}Full Name{% endif %} <span style="color: var(--danger);">*</span>
+          </label>
           <div class="input-with-icon has-left-icon">
             <span class="input-icon-left">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -136,9 +191,11 @@
           </div>
         </div>
 
-        <!-- Email Address -->
+        <!-- Email Address (Both Roles) -->
         <div class="form-group">
-          <label for="email" class="form-label">Email Address</label>
+          <label for="email" class="form-label" id="label-email">
+            {% if active_tab == 'admin' %}Admin Work Email{% else %}Email Address{% endif %} <span style="color: var(--danger);">*</span>
+          </label>
           <div class="input-with-icon has-left-icon">
             <span class="input-icon-left">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -159,14 +216,16 @@
           </div>
         </div>
 
-        <!-- Organization Identifier -->
+        <!-- Organization Identifier / Slug -->
         <div class="form-group">
-          <label for="organization_slug" class="form-label">Organization Slug (Optional)</label>
+          <label for="organization_slug" class="form-label" id="label-org-slug">
+            {% if active_tab == 'admin' %}Custom Workspace Slug (Optional){% else %}Organization Slug (Optional){% endif %}
+          </label>
           <div class="input-with-icon has-left-icon">
             <span class="input-icon-left">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
             </span>
             <input 
@@ -174,16 +233,18 @@
               id="organization_slug" 
               name="organization_slug" 
               class="form-control" 
-              placeholder="brightloop-software"
-              value="{{ organization_slug or 'brightloop-software' }}"
+              placeholder="{% if active_tab == 'admin' %}auto-generated from company name{% else %}brightloop-software{% endif %}"
+              value="{{ organization_slug or '' }}"
             >
           </div>
-          <span class="form-help">Tenant workspace identifier. Defaults to reference tenant.</span>
+          <span class="form-help" id="help-org-slug">
+            {% if active_tab == 'admin' %}Unique URL identifier for your organization workspace. Auto-generated if blank.{% else %}Target workspace identifier. Defaults to reference tenant (brightloop-software).{% endif %}
+          </span>
         </div>
 
         <!-- Password -->
         <div class="form-group">
-          <label for="password" class="form-label">Password</label>
+          <label for="password" class="form-label">Password <span style="color: var(--danger);">*</span></label>
           <div class="input-with-icon has-left-icon">
             <span class="input-icon-left">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -214,13 +275,48 @@
             </button>
           </div>
           <span class="form-help">
-            Must be &gt; 8 chars, containing uppercase [A-Z], lowercase [a-z], and special symbol.
+            Must be &gt; 8 characters, containing uppercase [A-Z], lowercase [a-z], and a special symbol.
           </span>
         </div>
 
+        <!-- Confirm Password -->
+        <div class="form-group">
+          <label for="confirm_password" class="form-label">Confirm Password <span style="color: var(--danger);">*</span></label>
+          <div class="input-with-icon has-left-icon">
+            <span class="input-icon-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </span>
+            <input 
+              type="password" 
+              id="confirm_password" 
+              name="confirm_password" 
+              class="form-control" 
+              placeholder="•••••••••" 
+              required 
+              autocomplete="new-password"
+            >
+            <button 
+              type="button" 
+              class="password-toggle-btn" 
+              data-target="confirm_password" 
+              title="Toggle password visibility"
+              aria-label="Toggle password visibility"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <span class="form-help" id="confirm-password-help">Re-enter your password to confirm match.</span>
+        </div>
+
         <!-- Submit Button -->
-        <button type="submit" class="btn btn-teal" style="width: 100%; padding: 0.75rem; margin-top: var(--space-2);">
-          Create Customer Account
+        <button type="submit" class="btn btn-teal" id="submit-btn" style="width: 100%; padding: 0.75rem; margin-top: var(--space-2);">
+          {% if active_tab == 'admin' %}Create Company & Admin Workspace{% else %}Create Customer Account{% endif %}
         </button>
       </form>
 
@@ -234,4 +330,131 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setRoleTab(role) {
+  const isTabAdmin = (role === 'admin');
+  
+  // 1. Update hidden input
+  document.getElementById('register_type').value = isTabAdmin ? 'admin' : 'customer';
+
+  // 2. Update Tab Buttons styling
+  const btnCustomer = document.getElementById('tab-btn-customer');
+  const btnAdmin = document.getElementById('tab-btn-admin');
+  if (isTabAdmin) {
+    btnAdmin.style.background = 'var(--bg-surface)';
+    btnAdmin.style.color = 'var(--primary-teal)';
+    btnAdmin.style.boxShadow = 'var(--shadow-sm)';
+    btnCustomer.style.background = 'transparent';
+    btnCustomer.style.color = 'var(--text-muted)';
+    btnCustomer.style.boxShadow = 'none';
+  } else {
+    btnCustomer.style.background = 'var(--bg-surface)';
+    btnCustomer.style.color = 'var(--primary-teal)';
+    btnCustomer.style.boxShadow = 'var(--shadow-sm)';
+    btnAdmin.style.background = 'transparent';
+    btnAdmin.style.color = 'var(--text-muted)';
+    btnAdmin.style.boxShadow = 'none';
+  }
+
+  // 3. Update Left Panel Preview
+  const previewLabel = document.getElementById('role-preview-label');
+  const previewBadge = document.getElementById('role-preview-badge');
+  if (isTabAdmin) {
+    previewLabel.textContent = 'Organization Onboarding';
+    previewBadge.className = 'badge badge-admin';
+    previewBadge.textContent = 'Admin Role · New Tenant';
+  } else {
+    previewLabel.textContent = 'Customer Portal Registration';
+    previewBadge.className = 'badge badge-customer';
+    previewBadge.textContent = 'Customer Role';
+  }
+
+  // 4. Update Headings & Subheadings
+  const heading = document.getElementById('form-heading');
+  const subheading = document.getElementById('form-subheading');
+  if (isTabAdmin) {
+    heading.textContent = 'Register Your Company';
+    subheading.textContent = 'Set up a new organization workspace to manage products, quotes & subscriptions';
+  } else {
+    heading.textContent = 'Create Customer Account';
+    subheading.textContent = "Join your organization's subscription and billing portal";
+  }
+
+  // 5. Toggle Company Name Field
+  const orgNameGroup = document.getElementById('field-group-org-name');
+  const orgNameInput = document.getElementById('organization_name');
+  if (isTabAdmin) {
+    orgNameGroup.style.display = 'block';
+    orgNameInput.required = true;
+  } else {
+    orgNameGroup.style.display = 'none';
+    orgNameInput.required = false;
+  }
+
+  // 6. Update Labels and Placeholders
+  const labelFullName = document.getElementById('label-full-name');
+  const labelEmail = document.getElementById('label-email');
+  const labelOrgSlug = document.getElementById('label-org-slug');
+  const inputOrgSlug = document.getElementById('organization_slug');
+  const helpOrgSlug = document.getElementById('help-org-slug');
+  const submitBtn = document.getElementById('submit-btn');
+
+  if (isTabAdmin) {
+    labelFullName.innerHTML = 'Admin Full Name <span style="color: var(--danger);">*</span>';
+    labelEmail.innerHTML = 'Admin Work Email <span style="color: var(--danger);">*</span>';
+    labelOrgSlug.textContent = 'Custom Workspace Slug (Optional)';
+    inputOrgSlug.placeholder = 'auto-generated from company name';
+    helpOrgSlug.textContent = 'Unique URL identifier for your organization workspace. Auto-generated if blank.';
+    submitBtn.textContent = 'Create Company & Admin Workspace';
+  } else {
+    labelFullName.innerHTML = 'Full Name <span style="color: var(--danger);">*</span>';
+    labelEmail.innerHTML = 'Email Address <span style="color: var(--danger);">*</span>';
+    labelOrgSlug.textContent = 'Organization Slug (Optional)';
+    inputOrgSlug.placeholder = 'brightloop-software';
+    helpOrgSlug.textContent = 'Target workspace identifier. Defaults to reference tenant (brightloop-software).';
+    submitBtn.textContent = 'Create Customer Account';
+  }
+
+  // 7. Update URL query without full reload
+  if (window.history && window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.set('role', isTabAdmin ? 'admin' : 'customer');
+    window.history.replaceState({}, '', url);
+  }
+}
+
+// Client-side password match validation
+const regForm = document.getElementById('register-form');
+if (regForm) {
+  regForm.addEventListener('submit', function(e) {
+    const pwd = document.getElementById('password');
+    const cpwd = document.getElementById('confirm_password');
+    if (pwd && cpwd && pwd.value !== cpwd.value) {
+      e.preventDefault();
+      let errContainer = document.getElementById('register-error');
+      if (!errContainer) {
+        errContainer = document.createElement('div');
+        errContainer.id = 'register-error';
+        regForm.parentNode.insertBefore(errContainer, regForm);
+      }
+      errContainer.innerHTML = '<div class="alert alert-error"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Passwords do not match. Please verify and re-enter.</span></div>';
+      cpwd.focus();
+    }
+  });
+}
+
+// Auto-initialize based on query or initial tab
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  const roleParam = params.get('role');
+  if (roleParam === 'admin') {
+    setRoleTab('admin');
+  } else if (roleParam === 'customer') {
+    setRoleTab('customer');
+  }
+});
+</script>
 {% endblock %}

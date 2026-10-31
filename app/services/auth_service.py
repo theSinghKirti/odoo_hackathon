@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
+import re
 import secrets
 from typing import Optional, Tuple
 from sqlalchemy import select
@@ -96,7 +97,7 @@ async def register_customer_user(
 ) -> User:
     """
     Public registration endpoint: Creates a Customer role account only.
-    Admins and Staff can NEVER be created through public registration.
+    Admins and Staff can NEVER be created through public customer registration.
     """
     # 1. Validate password policy
     validate_password_policy(password)
@@ -149,6 +150,79 @@ async def register_customer_user(
     await session.refresh(user)
 
     return user
+
+
+async def register_admin_user(
+    session: AsyncSession,
+    organization_name: str,
+    full_name: str,
+    email: str,
+    password: str,
+    organization_slug: Optional[str] = None,
+) -> User:
+    """
+    Onboarding registration endpoint for Admin / Company accounts.
+    Creates a new Organization (tenant) and the primary Admin user.
+    """
+    # 1. Validate password policy
+    validate_password_policy(password)
+
+    org_name_clean = organization_name.strip()
+    if not org_name_clean:
+        raise RegistrationError("Organization name is required.")
+
+    # 2. Derive / validate organization slug
+    if organization_slug and organization_slug.strip():
+        slug = re.sub(r"[^a-z0-9\-]+", "-", organization_slug.strip().lower()).strip("-")
+    else:
+        slug = re.sub(r"[^a-z0-9\-]+", "-", org_name_clean.lower()).strip("-")
+
+    if not slug:
+        raise RegistrationError("Valid organization slug could not be derived.")
+
+    # 3. Check for existing organization by slug or name
+    stmt_org = select(Organization).where(
+        (Organization.slug == slug) | (Organization.name.ilike(org_name_clean))
+    )
+    res_org = await session.execute(stmt_org)
+    existing_org = res_org.scalars().first()
+    if existing_org:
+        raise RegistrationError(f"An organization with the name '{org_name_clean}' or slug '{slug}' already exists.")
+
+    # 4. Create new organization
+    org = Organization(
+        name=org_name_clean,
+        slug=slug,
+        is_active=True,
+    )
+    session.add(org)
+    await session.flush()
+
+    # 5. Check if user with email already exists in this new org
+    email_clean = email.lower().strip()
+    stmt_user = select(User).where(
+        User.organization_id == org.id,
+        User.email == email_clean,
+    )
+    res_user = await session.execute(stmt_user)
+    if res_user.scalars().first():
+        raise RegistrationError("An account with this email already exists in this organization.")
+
+    # 6. Create primary Admin user
+    admin_user = User(
+        organization_id=org.id,
+        full_name=full_name.strip(),
+        email=email_clean,
+        password_hash=hash_password(password),
+        role=UserRole.ADMIN,
+        is_active=True,
+        is_verified=True,
+    )
+    session.add(admin_user)
+    await session.commit()
+    await session.refresh(admin_user)
+
+    return admin_user
 
 
 async def request_password_reset(
@@ -238,4 +312,3 @@ async def reset_password_with_token(
     await session.commit()
 
     return True
-

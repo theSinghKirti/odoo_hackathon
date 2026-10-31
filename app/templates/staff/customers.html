@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Customers — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>Customers Directory</h1>
+      <span class="badge badge-active">{{ customers|length }} Total</span>
+    </div>
+    <p class="view-header-sub">Manage client accounts, view subscription history, and oversee customer billing profiles</p>
+  </div>
+  <div class="view-header-actions">
+    <button 
+      class="btn btn-teal" 
+      onclick="document.getElementById('customer-modal').style.display = 'flex'"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <line x1="20" y1="8" x2="20" y2="14"/>
+        <line x1="23" y1="11" x2="17" y2="11"/>
+      </svg>
+      <span>+ Add Customer</span>
+    </button>
+  </div>
+</div>
+
+<!-- CUSTOMERS TABLE -->
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Customer / Company</th>
+        <th>Contact Email</th>
+        <th>Phone</th>
+        <th>Address</th>
+        <th>Status</th>
+        <th style="text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in customers %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 34px; height: 34px; border-radius: var(--radius-sm); background: rgba(13, 148, 136, 0.1); color: var(--primary-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">
+                {{ c.name[:2].upper() }}
+              </div>
+              <div>
+                <a href="/staff/customers/{{ c.id }}" style="font-weight: 600; color: var(--navy); text-decoration: none;">
+                  {{ c.name }}
+                </a>
+              </div>
+            </div>
+          </td>
+          <td>{{ c.email }}</td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">{{ c.phone or '—' }}</td>
+          <td style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 0.85rem;">
+            {{ c.address or '—' }}
+          </td>
+          <td>
+            {% if c.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-closed">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <a href="/staff/customers/{{ c.id }}" class="btn btn-outline btn-sm">
+              View Profile &rarr;
+            </a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            No customers found. Click <strong>+ Add Customer</strong> to create the first client.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- CREATE CUSTOMER MODAL -->
+<div id="customer-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+  <div style="background: var(--bg-surface); border-radius: var(--radius-lg); max-width: 520px; width: 100%; padding: var(--space-6); box-shadow: var(--shadow-lg);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">Add New Customer</h3>
+      <button type="button" onclick="document.getElementById('customer-modal').style.display = 'none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+    </div>
+    
+    <form method="POST" action="/web/customers">
+      <div class="form-group">
+        <label for="cust_name" class="form-label">Client / Company Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="cust_name" name="name" class="form-control" placeholder="Acme Logistics Corp" required>
+      </div>
+
+      <div class="form-group">
+        <label for="cust_email" class="form-label">Billing Email Address <span style="color: var(--danger);">*</span></label>
+        <input type="email" id="cust_email" name="email" class="form-control" placeholder="billing@acme.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="cust_phone" class="form-label">Phone Number</label>
+        <input type="text" id="cust_phone" name="phone" class="form-control" placeholder="+1-555-0199">
+      </div>
+
+      <div class="form-group">
+        <label for="cust_address" class="form-label">Billing Address</label>
+        <textarea id="cust_address" name="address" class="form-control" rows="2" placeholder="Street, City, Country, Postal Code"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('customer-modal').style.display = 'none'">Cancel</button>
+        <button type="submit" class="btn btn-teal">Save Customer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

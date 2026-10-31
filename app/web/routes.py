@@ -1,7 +1,7 @@
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, Form, Request, Response, status
+from fastapi import APIRouter, Depends, Form, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -15,7 +15,13 @@ from app.core.security import (
     set_auth_cookie,
 )
 from app.db.session import get_async_db
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.customer import Customer
+from app.models.quotation import Quotation, QuotationLine, QuotationStatus
+from app.models.subscription import Subscription, SubscriptionLine, SubscriptionStatus
+from app.models.invoice import Invoice, InvoiceLine, InvoiceStatus
+from app.models.payment import Payment, PaymentMethod, PaymentStatus
+from datetime import timedelta
 from app.models.product import ProductType
 from app.models.plan import SubscriptionPlan, BillingInterval
 from app.models.tax import TaxRule
@@ -35,6 +41,7 @@ from app.services.product_service import ProductService
 from app.services.auth_service import (
     authenticate_user,
     register_customer_user,
+    register_admin_user,
     request_password_reset,
     reset_password_with_token,
     AuthenticationError,
@@ -67,6 +74,14 @@ async def get_optional_user(request: Request, db: AsyncSession) -> Optional[User
         return None
     except Exception:
         return None
+
+
+get_current_user_from_cookie = get_optional_user
+
+
+@router.get('/auth/login', response_class=HTMLResponse)
+async def auth_login_redirect():
+    return RedirectResponse(url='/login', status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -121,34 +136,77 @@ async def login_submit(
 
 
 @router.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request, db: AsyncSession = Depends(get_async_db)):
+async def register_page(
+    request: Request,
+    role: str = Query("customer"),
+    db: AsyncSession = Depends(get_async_db),
+):
     user = await get_optional_user(request, db)
     if user:
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    active_tab = "admin" if role.lower() == "admin" else "customer"
     return templates.TemplateResponse(
         request=request,
         name="auth/register.html",
-        context={"user": None, "error": None},
+        context={
+            "user": None,
+            "error": None,
+            "active_tab": active_tab,
+            "full_name": "",
+            "email": "",
+            "organization_name": "",
+            "organization_slug": "brightloop-software" if active_tab == "customer" else "",
+        },
     )
+
+
+@router.get("/register/customer", response_class=HTMLResponse)
+async def register_customer_page(request: Request, db: AsyncSession = Depends(get_async_db)):
+    return await register_page(request=request, role="customer", db=db)
+
+
+@router.get("/register/admin", response_class=HTMLResponse)
+async def register_admin_page(request: Request, db: AsyncSession = Depends(get_async_db)):
+    return await register_page(request=request, role="admin", db=db)
 
 
 @router.post("/register", response_class=HTMLResponse)
 async def register_submit(
     request: Request,
+    register_type: str = Form("customer"),
     full_name: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
+    confirm_password: Optional[str] = Form(None),
+    organization_name: Optional[str] = Form(None),
     organization_slug: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_async_db),
 ):
+    active_tab = "admin" if register_type.lower() == "admin" else "customer"
     try:
-        user = await register_customer_user(
-            session=db,
-            full_name=full_name,
-            email=email,
-            password=password,
-            organization_slug=organization_slug,
-        )
+        if confirm_password is not None and confirm_password.strip() and password != confirm_password:
+            raise RegistrationError("Passwords do not match. Please verify and re-enter.")
+
+        if active_tab == "admin":
+            if not organization_name or not organization_name.strip():
+                raise RegistrationError("Company / Organization name is required for Admin registration.")
+            user = await register_admin_user(
+                session=db,
+                organization_name=organization_name,
+                full_name=full_name,
+                email=email,
+                password=password,
+                organization_slug=organization_slug,
+            )
+        else:
+            user = await register_customer_user(
+                session=db,
+                full_name=full_name,
+                email=email,
+                password=password,
+                organization_slug=organization_slug,
+            )
+
         token = create_access_token(
             subject=str(user.id),
             organization_id=user.organization_id,
@@ -164,12 +222,61 @@ async def register_submit(
             context={
                 "user": None,
                 "error": str(e),
+                "active_tab": active_tab,
                 "full_name": full_name,
                 "email": email,
-                "organization_slug": organization_slug,
+                "organization_name": organization_name or "",
+                "organization_slug": organization_slug or "",
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+
+
+@router.post("/register/customer", response_class=HTMLResponse)
+async def register_customer_submit(
+    request: Request,
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: Optional[str] = Form(None),
+    organization_slug: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    return await register_submit(
+        request=request,
+        register_type="customer",
+        full_name=full_name,
+        email=email,
+        password=password,
+        confirm_password=confirm_password,
+        organization_name=None,
+        organization_slug=organization_slug,
+        db=db,
+    )
+
+
+@router.post("/register/admin", response_class=HTMLResponse)
+async def register_admin_submit(
+    request: Request,
+    organization_name: str = Form(...),
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: Optional[str] = Form(None),
+    organization_slug: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    return await register_submit(
+        request=request,
+        register_type="admin",
+        full_name=full_name,
+        email=email,
+        password=password,
+        confirm_password=confirm_password,
+        organization_name=organization_name,
+        organization_slug=organization_slug,
+        db=db,
+    )
 
 
 @router.get("/forgot-password", response_class=HTMLResponse)
@@ -177,7 +284,7 @@ async def forgot_password_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="auth/forgot_password.html",
-        context={"user": None, "error": None, "message": None, "dev_token": None},
+        context={"user": None, "error": None, "message": None, "dev_token": None, "email": ""},
     )
 
 
@@ -198,9 +305,25 @@ async def forgot_password_submit(
         context={
             "user": None,
             "error": None,
-            "message": "If this email is registered, password reset instructions have been generated.",
+            "message": "If this email is registered, password reset instructions have been sent.",
             "dev_token": dev_token,
-            "prefill_token": dev_token or "",
+            "email": email,
+        },
+    )
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(
+    request: Request,
+    token: Optional[str] = Query(None),
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="auth/reset_password.html",
+        context={
+            "user": None,
+            "error": None,
+            "prefill_token": token or "",
         },
     )
 
@@ -210,8 +333,21 @@ async def reset_password_submit(
     request: Request,
     token: str = Form(...),
     new_password: str = Form(...),
+    confirm_password: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_async_db),
 ):
+    if confirm_password is not None and confirm_password.strip() and new_password != confirm_password:
+        return templates.TemplateResponse(
+            request=request,
+            name="auth/reset_password.html",
+            context={
+                "user": None,
+                "error": "Passwords do not match. Please verify and re-enter.",
+                "prefill_token": token,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     try:
         await reset_password_with_token(db, token=token, new_password=new_password)
         return templates.TemplateResponse(
@@ -226,16 +362,33 @@ async def reset_password_submit(
     except (ResetPasswordError, PasswordValidationError) as e:
         return templates.TemplateResponse(
             request=request,
-            name="auth/forgot_password.html",
+            name="auth/reset_password.html",
             context={
                 "user": None,
                 "error": str(e),
-                "message": None,
-                "dev_token": None,
                 "prefill_token": token,
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+
+
+@router.get("/access-denied", response_class=HTMLResponse)
+@router.get("/unauthorized", response_class=HTMLResponse)
+async def access_denied_page(
+    request: Request,
+    detail: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    return templates.TemplateResponse(
+        request=request,
+        name="auth/access_denied.html",
+        context={
+            "user": user,
+            "detail": detail or "You do not have permission to access this page or resource.",
+        },
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -246,6 +399,38 @@ async def dashboard_page(
     user = await get_optional_user(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    if user.role.value == "customer":
+        stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+        cust = (await db.execute(stmt_c)).scalars().first()
+        cust_id = cust.id if cust else 0
+
+        stmt_s = select(Subscription).options(selectinload(Subscription.plan)).where(Subscription.customer_id == cust_id)
+        subs = (await db.execute(stmt_s)).scalars().all()
+
+        stmt_inv = select(Invoice).where(Invoice.customer_id == cust_id).order_by(Invoice.invoice_date.desc())
+        invoices = (await db.execute(stmt_inv)).scalars().all()
+
+        stmt_q = select(Quotation).options(selectinload(Quotation.plan)).where(Quotation.customer_id == cust_id)
+        quotes = (await db.execute(stmt_q)).scalars().all()
+
+        unpaid = [i for i in invoices if i.status.value in ('confirmed', 'draft') and i.amount_due > Decimal("0.00")]
+        total_due = sum((i.amount_due for i in unpaid), Decimal("0.00"))
+
+        return templates.TemplateResponse(
+            request=request,
+            name="portal/index.html",
+            context={
+                "user": user,
+                "customer": cust,
+                "subscriptions": subs,
+                "invoices": invoices,
+                "quotations": quotes,
+                "unpaid_invoices": unpaid,
+                "total_due": total_due,
+                "active_nav": "dashboard",
+            },
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -2911,6 +3096,7 @@ async def quotation_templates_page(
     plans = db_plans if db_plans else MOCK_PLANS
 
     return templates.TemplateResponse(
+        request=request,
         name="admin/quotation_templates.html",
         context={
             "request": request,
@@ -2976,6 +3162,7 @@ async def quotations_page(
     stats = _compute_quotation_stats(quotations)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/quotations.html",
         context={
             "request": request,
@@ -3060,6 +3247,7 @@ async def new_quotation_page(
     default_expiry = today + timedelta(days=default_days)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/quotation_form.html",
         context={
             "request": request,
@@ -3256,6 +3444,7 @@ async def quotation_detail_page(
         return RedirectResponse(url="/staff/quotations", status_code=status.HTTP_302_FOUND)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/quotation_detail.html",
         context={
             "request": request,
@@ -3469,6 +3658,7 @@ async def subscriptions_page(
     stats = _compute_subscription_stats(subscriptions)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/subscriptions.html",
         context={
             "request": request,
@@ -3519,6 +3709,7 @@ async def subscriptions_table_partial(
             ]
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/partials/subscription_table.html",
         context={
             "request": request,
@@ -3554,6 +3745,7 @@ async def subscription_detail_page(
         return RedirectResponse(url="/staff/subscriptions", status_code=status.HTTP_302_FOUND)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/subscription_detail.html",
         context={
             "request": request,
@@ -3591,6 +3783,7 @@ async def subscription_modal(
         return HTMLResponse(content="<div class='alert alert-danger'>Subscription not found.</div>", status_code=404)
 
     return templates.TemplateResponse(
+        request=request,
         name="staff/partials/subscription_confirmation.html",
         context={
             "request": request,
@@ -3626,6 +3819,7 @@ async def pause_subscription_route(
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
+            request=request,
             name="staff/subscription_detail.html",
             context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
         )
@@ -3657,6 +3851,7 @@ async def resume_subscription_route(
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
+            request=request,
             name="staff/subscription_detail.html",
             context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
         )
@@ -3688,6 +3883,7 @@ async def close_subscription_route(
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
+            request=request,
             name="staff/subscription_detail.html",
             context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
         )
@@ -3721,7 +3917,833 @@ async def renew_subscription_route(
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
+            request=request,
             name="staff/subscription_detail.html",
             context={"request": request, "user": user, "active_nav": "subscriptions", "subscription": sub},
         )
     return RedirectResponse(url=f"/staff/subscriptions/{subscription_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 2.B USER MANAGEMENT (ADMIN ONLY)
+# ===========================================================================
+
+@router.get("/admin/users", response_class=HTMLResponse)
+async def admin_users_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value != "admin":
+        return RedirectResponse(url="/access-denied?detail=Only+Administrators+can+access+User+Management", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(User).where(User.organization_id == user.organization_id).order_by(User.id)
+    users = (await db.execute(stmt)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/users.html",
+        context={"user": user, "users": users, "active_nav": "users"},
+    )
+
+
+@router.post("/web/users/staff", response_class=HTMLResponse)
+async def create_staff_user(
+    request: Request,
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value != "admin":
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        from app.services.password_service import validate_password_policy, hash_password
+        validate_password_policy(password)
+        new_staff = User(
+            organization_id=user.organization_id,
+            full_name=full_name.strip(),
+            email=email.lower().strip(),
+            password_hash=hash_password(password),
+            role=UserRole.STAFF,
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(new_staff)
+        await db.commit()
+    except Exception:
+        pass
+
+    return RedirectResponse(url="/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/web/users/{user_id}/toggle-status", response_class=HTMLResponse)
+async def toggle_user_status(
+    user_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    current_u = await get_optional_user(request, db)
+    if not current_u or current_u.role.value != "admin":
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(User).where(User.id == user_id, User.organization_id == current_u.organization_id)
+    target_u = (await db.execute(stmt)).scalars().first()
+    if target_u and target_u.id != current_u.id:
+        target_u.is_active = not target_u.is_active
+        await db.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 3.B CUSTOMER MANAGEMENT (STAFF & ADMIN)
+# ===========================================================================
+
+@router.get("/staff/customers", response_class=HTMLResponse)
+async def staff_customers_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(Customer).where(Customer.organization_id == user.organization_id).order_by(Customer.name)
+    customers = (await db.execute(stmt)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/customers.html",
+        context={"user": user, "customers": customers, "active_nav": "customers"},
+    )
+
+
+@router.get("/staff/customers/{customer_id}", response_class=HTMLResponse)
+async def staff_customer_detail_page(
+    customer_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt_c = select(Customer).options(selectinload(Customer.user)).where(Customer.id == customer_id, Customer.organization_id == user.organization_id)
+    customer = (await db.execute(stmt_c)).scalars().first()
+    if not customer:
+        return RedirectResponse(url="/staff/customers", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Subscriptions
+    stmt_s = select(Subscription).options(selectinload(Subscription.plan)).where(Subscription.customer_id == customer_id, Subscription.organization_id == user.organization_id)
+    subs = (await db.execute(stmt_s)).scalars().all()
+
+    # Invoices
+    stmt_i = select(Invoice).where(Invoice.customer_id == customer_id, Invoice.organization_id == user.organization_id).order_by(Invoice.invoice_date.desc())
+    invoices = (await db.execute(stmt_i)).scalars().all()
+
+    # Quotations
+    stmt_q = select(Quotation).options(selectinload(Quotation.plan)).where(Quotation.customer_id == customer_id, Quotation.organization_id == user.organization_id).order_by(Quotation.id.desc())
+    quotes = (await db.execute(stmt_q)).scalars().all()
+
+    # Payments
+    stmt_p = select(Payment).options(selectinload(Payment.invoice)).where(Payment.customer_id == customer_id, Payment.organization_id == user.organization_id).order_by(Payment.payment_date.desc())
+    payments = (await db.execute(stmt_p)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/customer_detail.html",
+        context={
+            "user": user,
+            "customer": customer,
+            "subscriptions": subs,
+            "invoices": invoices,
+            "quotations": quotes,
+            "payments": payments,
+            "active_nav": "customers",
+        },
+    )
+
+
+@router.post("/web/customers", response_class=HTMLResponse)
+async def create_customer_route(
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(...),
+    phone: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    cust = Customer(
+        organization_id=user.organization_id,
+        name=name.strip(),
+        email=email.lower().strip(),
+        phone=phone.strip() if phone else None,
+        address=address.strip() if address else None,
+        is_active=True,
+    )
+    db.add(cust)
+    await db.commit()
+    await db.refresh(cust)
+
+    return RedirectResponse(url=f"/staff/customers/{cust.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/web/customers/{customer_id}", response_class=HTMLResponse)
+async def edit_customer_route(
+    customer_id: int,
+    request: Request,
+    name: str = Form(...),
+    phone: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(Customer).where(Customer.id == customer_id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt)).scalars().first()
+    if cust:
+        cust.name = name.strip()
+        cust.phone = phone.strip() if phone else None
+        cust.address = address.strip() if address else None
+        await db.commit()
+
+    return RedirectResponse(url=f"/staff/customers/{customer_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 3.E INVOICE MANAGEMENT (STAFF & ADMIN)
+# ===========================================================================
+
+@router.get("/staff/invoices", response_class=HTMLResponse)
+async def staff_invoices_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = (
+        select(Invoice)
+        .options(selectinload(Invoice.customer))
+        .where(Invoice.organization_id == user.organization_id)
+        .order_by(Invoice.invoice_date.desc())
+    )
+    invoices = (await db.execute(stmt)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/invoices.html",
+        context={"user": user, "invoices": invoices, "today": date.today(), "active_nav": "invoices"},
+    )
+
+
+@router.get("/staff/invoices/{invoice_id}", response_class=HTMLResponse)
+async def staff_invoice_detail_page(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt = (
+        select(Invoice)
+        .options(
+            selectinload(Invoice.customer),
+            selectinload(Invoice.subscription),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.product),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.variant),
+            selectinload(Invoice.payments),
+        )
+        .where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    )
+    invoice = (await db.execute(stmt)).scalars().first()
+    if not invoice:
+        return RedirectResponse(url="/staff/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/invoice_detail.html",
+        context={"user": user, "invoice": invoice, "today": date.today(), "active_nav": "invoices"},
+    )
+
+
+@router.get("/staff/invoices/{invoice_id}/print", response_class=HTMLResponse)
+async def staff_invoice_print_page(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt = (
+        select(Invoice)
+        .options(
+            selectinload(Invoice.customer),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.product),
+            selectinload(Invoice.lines).selectinload(InvoiceLine.variant),
+        )
+        .where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    )
+    invoice = (await db.execute(stmt)).scalars().first()
+    if not invoice:
+        return RedirectResponse(url="/staff/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/invoice_print.html",
+        context={"invoice": invoice},
+    )
+
+
+@router.post("/web/invoices/{invoice_id}/confirm", response_class=HTMLResponse)
+async def confirm_invoice_route(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(Invoice).where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    invoice = (await db.execute(stmt)).scalars().first()
+    if invoice and invoice.status.value == "draft":
+        invoice.status = InvoiceStatus.CONFIRMED
+        await db.commit()
+
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/web/invoices/{invoice_id}/cancel", response_class=HTMLResponse)
+async def cancel_invoice_route(
+    invoice_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    stmt = select(Invoice).where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    invoice = (await db.execute(stmt)).scalars().first()
+    if invoice and invoice.status.value != "paid":
+        invoice.status = InvoiceStatus.CANCELLED
+        await db.commit()
+
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 3.F PAYMENT MANAGEMENT (STAFF & ADMIN)
+# ===========================================================================
+
+@router.get("/staff/payments", response_class=HTMLResponse)
+async def staff_payments_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Payments
+    stmt = (
+        select(Payment)
+        .options(selectinload(Payment.customer), selectinload(Payment.invoice))
+        .where(Payment.organization_id == user.organization_id)
+        .order_by(Payment.payment_date.desc())
+    )
+    payments = (await db.execute(stmt)).scalars().all()
+
+    # Outstanding Invoices
+    stmt_due = (
+        select(Invoice)
+        .options(selectinload(Invoice.customer))
+        .where(
+            Invoice.organization_id == user.organization_id,
+            Invoice.status.in_([InvoiceStatus.CONFIRMED, InvoiceStatus.DRAFT]),
+            Invoice.amount_due > Decimal("0.00"),
+        )
+        .order_by(Invoice.due_date)
+    )
+    outstanding_invoices = (await db.execute(stmt_due)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="staff/payments.html",
+        context={
+            "user": user,
+            "payments": payments,
+            "outstanding_invoices": outstanding_invoices,
+            "today": date.today(),
+            "active_nav": "payments",
+        },
+    )
+
+
+@router.post("/web/payments", response_class=HTMLResponse)
+async def record_payment_route(
+    request: Request,
+    invoice_id: int = Form(...),
+    customer_id: int = Form(...),
+    amount: Decimal = Form(...),
+    payment_method: str = Form(...),
+    payment_date: str = Form(...),
+    note: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value not in ("admin", "staff"):
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Resolve invoice
+    stmt_i = select(Invoice).where(Invoice.id == invoice_id, Invoice.organization_id == user.organization_id)
+    invoice = (await db.execute(stmt_i)).scalars().first()
+    if not invoice:
+        return RedirectResponse(url="/staff/payments", status_code=status.HTTP_303_SEE_OTHER)
+
+    p_dt = datetime.strptime(payment_date, "%Y-%m-%d").date() if payment_date else date.today()
+    meth_enum = getattr(PaymentMethod, payment_method.upper(), PaymentMethod.OTHER)
+
+    payment = Payment(
+        organization_id=user.organization_id,
+        invoice_id=invoice.id,
+        customer_id=customer_id,
+        payment_method=meth_enum,
+        amount=amount,
+        payment_date=p_dt,
+        status=PaymentStatus.SUCCEEDED,
+        note=note.strip() if note else None,
+    )
+    db.add(payment)
+
+    # Update invoice paid amounts
+    invoice.amount_paid += amount
+    invoice.amount_due = max(Decimal("0.00"), invoice.total_amount - invoice.amount_paid)
+    if invoice.amount_due == Decimal("0.00"):
+        invoice.status = InvoiceStatus.PAID
+
+    await db.commit()
+
+    return RedirectResponse(url=f"/staff/invoices/{invoice_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 4. CUSTOMER PORTAL WEB ROUTES
+# ===========================================================================
+
+@router.get("/portal", response_class=HTMLResponse)
+async def portal_home(request: Request):
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/portal/plans", response_class=HTMLResponse)
+async def portal_plans_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt = select(SubscriptionPlan).where(SubscriptionPlan.organization_id == user.organization_id, SubscriptionPlan.is_active == True).order_by(SubscriptionPlan.base_price)
+    plans = (await db.execute(stmt)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="portal/plans.html",
+        context={"user": user, "plans": plans, "active_nav": "portal_plans"},
+    )
+
+
+@router.post("/portal/plans/{plan_id}/request-quote", response_class=HTMLResponse)
+async def portal_request_quote(
+    plan_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    if not cust:
+        cust = Customer(organization_id=user.organization_id, user_id=user.id, name=user.full_name, email=user.email, is_active=True)
+        db.add(cust)
+        await db.flush()
+
+    stmt_pl = select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id)
+    plan = (await db.execute(stmt_pl)).scalars().first()
+    if plan:
+        import random
+        q_num = f"QT-{date.today().year}-{random.randint(1000, 9999)}"
+        quote = Quotation(
+            organization_id=user.organization_id,
+            quotation_number=q_num,
+            customer_id=cust.id,
+            plan_id=plan.id,
+            start_date=date.today(),
+            expiry_date=date.today() + timedelta(days=30),
+            status=QuotationStatus.QUOTATION,
+            subtotal=plan.base_price,
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            total_amount=plan.base_price,
+            notes="Customer self-service requested quote",
+        )
+        db.add(quote)
+        await db.commit()
+
+    return RedirectResponse(url="/portal/quotations", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/quotations", response_class=HTMLResponse)
+async def portal_quotations_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    cust_id = cust.id if cust else 0
+
+    stmt_q = select(Quotation).options(selectinload(Quotation.plan), selectinload(Quotation.subscription)).where(Quotation.customer_id == cust_id).order_by(Quotation.id.desc())
+    quotes = (await db.execute(stmt_q)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="portal/quotations.html",
+        context={"user": user, "quotations": quotes, "active_nav": "portal_quotations"},
+    )
+
+
+@router.post("/portal/quotations/{quotation_id}/accept", response_class=HTMLResponse)
+async def portal_accept_quotation(
+    quotation_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    cust_id = cust.id if cust else 0
+
+    stmt_q = select(Quotation).options(selectinload(Quotation.plan)).where(Quotation.id == quotation_id, Quotation.customer_id == cust_id)
+    quote = (await db.execute(stmt_q)).scalars().first()
+    if quote and quote.status == QuotationStatus.QUOTATION:
+        quote.status = QuotationStatus.CONVERTED
+        import random
+        sub_num = f"SUB-{date.today().year}-{random.randint(1000, 9999)}"
+        sub = Subscription(
+            organization_id=quote.organization_id,
+            subscription_number=sub_num,
+            customer_id=quote.customer_id,
+            plan_id=quote.plan_id,
+            quotation_id=quote.id,
+            start_date=date.today(),
+            expiry_date=date.today() + timedelta(days=365),
+            next_billing_date=date.today() + timedelta(days=30),
+            status=SubscriptionStatus.ACTIVE,
+            auto_close_on_expiry=quote.plan.auto_close_on_expiry,
+            allow_early_close=quote.plan.allow_early_close,
+            allow_pause=quote.plan.allow_pause,
+            allow_renewal=quote.plan.allow_renewal,
+            subtotal=quote.subtotal,
+            tax_amount=quote.tax_amount,
+            discount_amount=quote.discount_amount,
+            total_amount=quote.total_amount,
+        )
+        db.add(sub)
+        await db.commit()
+
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/subscriptions", response_class=HTMLResponse)
+async def portal_subscriptions_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    cust_id = cust.id if cust else 0
+
+    stmt_s = select(Subscription).options(selectinload(Subscription.plan)).where(Subscription.customer_id == cust_id).order_by(Subscription.id.desc())
+    subs = (await db.execute(stmt_s)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="portal/subscriptions.html",
+        context={"user": user, "subscriptions": subs, "active_nav": "portal_subscriptions"},
+    )
+
+
+@router.post("/portal/subscriptions/{subscription_id}/pause", response_class=HTMLResponse)
+async def portal_pause_sub(subscription_id: int, request: Request, db: AsyncSession = Depends(get_async_db)):
+    user = await get_optional_user(request, db)
+    if not user: return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    stmt = select(Subscription).where(Subscription.id == subscription_id)
+    sub = (await db.execute(stmt)).scalars().first()
+    if sub and sub.allow_pause and sub.status == SubscriptionStatus.ACTIVE:
+        sub.status = SubscriptionStatus.PAUSED
+        await db.commit()
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/subscriptions/{subscription_id}/resume", response_class=HTMLResponse)
+async def portal_resume_sub(subscription_id: int, request: Request, db: AsyncSession = Depends(get_async_db)):
+    user = await get_optional_user(request, db)
+    if not user: return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    stmt = select(Subscription).where(Subscription.id == subscription_id)
+    sub = (await db.execute(stmt)).scalars().first()
+    if sub and sub.status == SubscriptionStatus.PAUSED:
+        sub.status = SubscriptionStatus.ACTIVE
+        await db.commit()
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/subscriptions/{subscription_id}/renew", response_class=HTMLResponse)
+async def portal_renew_sub(subscription_id: int, request: Request, db: AsyncSession = Depends(get_async_db)):
+    user = await get_optional_user(request, db)
+    if not user: return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    stmt = select(Subscription).where(Subscription.id == subscription_id)
+    sub = (await db.execute(stmt)).scalars().first()
+    if sub and sub.allow_renewal and sub.status != SubscriptionStatus.CLOSED:
+        sub.expiry_date = sub.expiry_date + timedelta(days=365)
+        await db.commit()
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/subscriptions/{subscription_id}/close", response_class=HTMLResponse)
+async def portal_close_sub(subscription_id: int, request: Request, db: AsyncSession = Depends(get_async_db)):
+    user = await get_optional_user(request, db)
+    if not user: return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    stmt = select(Subscription).where(Subscription.id == subscription_id)
+    sub = (await db.execute(stmt)).scalars().first()
+    if sub and sub.allow_early_close and sub.status != SubscriptionStatus.CLOSED:
+        sub.status = SubscriptionStatus.CLOSED
+        await db.commit()
+    return RedirectResponse(url="/portal/subscriptions", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/invoices", response_class=HTMLResponse)
+async def portal_invoices_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    cust_id = cust.id if cust else 0
+
+    stmt_i = select(Invoice).where(Invoice.customer_id == cust_id).order_by(Invoice.invoice_date.desc())
+    invoices = (await db.execute(stmt_i)).scalars().all()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="portal/invoices.html",
+        context={"user": user, "invoices": invoices, "today": date.today(), "active_nav": "portal_invoices"},
+    )
+
+
+@router.post("/portal/invoices/pay", response_class=HTMLResponse)
+async def portal_pay_invoice(
+    request: Request,
+    invoice_id: int = Form(...),
+    payment_method: str = Form("razorpay"),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt = select(Invoice).where(Invoice.id == invoice_id)
+    invoice = (await db.execute(stmt)).scalars().first()
+    if invoice and invoice.amount_due > Decimal("0.00"):
+        amount_to_pay = invoice.amount_due
+        pay = Payment(
+            organization_id=invoice.organization_id,
+            invoice_id=invoice.id,
+            customer_id=invoice.customer_id,
+            payment_method=PaymentMethod.RAZORPAY if payment_method == "razorpay" else PaymentMethod.OTHER,
+            amount=amount_to_pay,
+            payment_date=date.today(),
+            status=PaymentStatus.SUCCEEDED,
+            razorpay_payment_id="pay_portal_mock_success",
+            note="Self-service online portal checkout",
+        )
+        db.add(pay)
+        invoice.amount_paid += amount_to_pay
+        invoice.amount_due = Decimal("0.00")
+        invoice.status = InvoiceStatus.PAID
+        await db.commit()
+
+    return RedirectResponse(url="/portal/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/portal/profile", response_class=HTMLResponse)
+async def portal_profile_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="portal/profile.html",
+        context={"user": user, "customer": cust, "active_nav": "portal_profile"},
+    )
+
+
+@router.post("/portal/profile", response_class=HTMLResponse)
+async def portal_profile_update(
+    request: Request,
+    full_name: str = Form(...),
+    phone: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    user.full_name = full_name.strip()
+    stmt_c = select(Customer).where(Customer.user_id == user.id, Customer.organization_id == user.organization_id)
+    cust = (await db.execute(stmt_c)).scalars().first()
+    if cust:
+        cust.name = full_name.strip()
+        cust.phone = phone.strip() if phone else None
+        cust.address = address.strip() if address else None
+
+    await db.commit()
+    return RedirectResponse(url="/portal/profile", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/portal/profile/change-password", response_class=HTMLResponse)
+async def portal_change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    from app.services.password_service import verify_password, validate_password_policy, hash_password
+    if verify_password(current_password, user.password_hash) and new_password == confirm_password:
+        try:
+            validate_password_policy(new_password)
+            user.password_hash = hash_password(new_password)
+            await db.commit()
+        except Exception:
+            pass
+
+    return RedirectResponse(url="/portal/profile", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ===========================================================================
+# 5. SYSTEM & BACKGROUND AUTOMATION (ADMIN ONLY)
+# ===========================================================================
+
+@router.get("/admin/system", response_class=HTMLResponse)
+async def admin_system_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    if user.role.value != "admin":
+        return RedirectResponse(url="/access-denied?detail=Only+Administrators+can+access+System+Management", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/system.html",
+        context={
+            "user": user,
+            "organization": user.organization,
+            "version": settings.VERSION,
+            "active_nav": "system",
+        },
+    )
+
+
+@router.post("/web/system/run-billing-sweep", response_class=HTMLResponse)
+async def trigger_billing_sweep(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value != "admin":
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        from app.services.billing_sweep_service import BillingSweepService
+        await BillingSweepService.execute_daily_billing_sweep(db, target_date=date.today())
+    except Exception:
+        pass
+
+    return RedirectResponse(url="/staff/invoices", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/web/system/run-renewal-sweep", response_class=HTMLResponse)
+async def trigger_renewal_sweep(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_optional_user(request, db)
+    if not user or user.role.value != "admin":
+        return RedirectResponse(url="/access-denied", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        from app.services.billing_sweep_service import BillingSweepService
+        await BillingSweepService.execute_expiry_close_sweep(db, target_date=date.today())
+    except Exception:
+        pass
+
+    return RedirectResponse(url="/staff/subscriptions", status_code=status.HTTP_303_SEE_OTHER)

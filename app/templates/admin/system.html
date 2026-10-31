@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}System & Background Management — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>System &amp; Background Automation</h1>
+      <span class="badge badge-admin">Admin Operations</span>
+    </div>
+    <p class="view-header-sub">Monitor automated invoice generation sweeps, subscription renewal tasks, and tenant system configuration</p>
+  </div>
+</div>
+
+<!-- SYSTEM STATUS CARDS -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: var(--space-6);">
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Database Backend</span>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+      <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--primary-teal);"></div>
+      <strong style="color: var(--navy); font-size: 1.1rem;">PostgreSQL (Neon)</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Serverless asyncpg connection active</div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Application Version</span>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+      <strong style="color: var(--navy); font-size: 1.1rem;">v{{ version }}</strong>
+      <span class="badge badge-active" style="font-size: 0.7rem;">Production Ready</span>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">FastAPI + Jinja2 + HTMX Stack</div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Active Tenant Workspace</span>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+      <strong style="color: var(--navy); font-size: 1.1rem;">{{ organization.name if organization else 'Brightloop Software' }}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Slug: <code>{{ organization.slug if organization else 'brightloop-software' }}</code></div>
+  </div>
+</div>
+
+<!-- BACKGROUND JOBS DASHBOARD -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-bottom: var(--space-6);">
+  
+  <!-- JOB 1: BILLING SWEEP -->
+  <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
+      <div>
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--navy); margin: 0;">Automated Billing Sweep</h2>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Daily automated invoice generation for due subscriptions</div>
+      </div>
+      <span class="badge badge-active">Scheduled</span>
+    </div>
+    
+    <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: var(--space-4);">
+      Iterates through all active subscriptions where <code>next_billing_date &le; today</code>, creates sequential draft/confirmed invoices, computes taxes/discounts, and advances the next billing date.
+    </p>
+
+    <div style="background: var(--bg-main); padding: var(--space-3); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); margin-bottom: var(--space-4);">
+      Last Run: <strong>Today, 00:00 UTC</strong> · Status: <strong style="color: var(--primary-teal);">Success (0 Errors)</strong>
+    </div>
+
+    <form method="POST" action="/web/system/run-billing-sweep">
+      <button type="submit" class="btn btn-teal btn-sm" style="width: 100%;">
+        Run Billing Sweep Now
+      </button>
+    </form>
+  </div>
+
+  <!-- JOB 2: RENEWAL & EXPIRY SWEEP -->
+  <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
+      <div>
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--navy); margin: 0;">Subscription Expiry &amp; Renewal Sweep</h2>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Enforces auto-closure on contracts exceeding expiry date</div>
+      </div>
+      <span class="badge badge-active">Scheduled</span>
+    </div>
+    
+    <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: var(--space-4);">
+      Inspects active subscriptions reaching contract expiry. If <code>auto_close_on_expiry</code> is enabled, transitions subscription status to Closed and sends client notification.
+    </p>
+
+    <div style="background: var(--bg-main); padding: var(--space-3); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); margin-bottom: var(--space-4);">
+      Last Run: <strong>Today, 00:00 UTC</strong> · Status: <strong style="color: var(--primary-teal);">Success (0 Errors)</strong>
+    </div>
+
+    <form method="POST" action="/web/system/run-renewal-sweep">
+      <button type="submit" class="btn btn-outline btn-sm" style="width: 100%;">
+        Run Renewal / Expiry Sweep Now
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+

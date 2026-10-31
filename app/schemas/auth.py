@@ -17,6 +17,17 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=9)
 
 
+class RegisterAdminRequest(BaseModel):
+    organization_name: str = Field(..., min_length=2, max_length=255)
+    full_name: str = Field(..., min_length=2, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=9)
+    organization_slug: Optional[str] = Field(
+        None,
+        description="Custom tenant slug. If omitted, derived from organization name.",
+    )
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -36,4 +47,3 @@ class MessageResponse(BaseModel):
     message: str
     detail: Optional[str] = None
     dev_token: Optional[str] = None  # Populated only in dev when simulation enabled
-

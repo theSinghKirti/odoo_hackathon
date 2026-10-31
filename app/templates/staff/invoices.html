@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>Invoice Management</h1>
+      <span class="badge badge-active">{{ invoices|length }} Total</span>
+    </div>
+    <p class="view-header-sub">Monitor billing schedules, verify recurring charges, record payments, and issue invoices</p>
+  </div>
+</div>
+
+<!-- INVOICES TABLE -->
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Invoice Number</th>
+        <th>Customer</th>
+        <th>Invoice Date</th>
+        <th>Due Date</th>
+        <th>Total Amount</th>
+        <th>Amount Due</th>
+        <th>Status</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td>
+            <a href="/staff/invoices/{{ inv.id }}" style="font-weight: 700; color: var(--navy); text-decoration: none;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td>
+            <a href="/staff/customers/{{ inv.customer_id }}" style="color: inherit; text-decoration: none;">
+              {{ inv.customer.name if inv.customer else '—' }}
+            </a>
+          </td>
+          <td>{{ inv.invoice_date.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <span style="{% if inv.amount_due > 0 and inv.due_date < today %}color: var(--danger); font-weight: 600;{% endif %}">
+              {{ inv.due_date.strftime('%Y-%m-%d') }}
+              {% if inv.amount_due > 0 and inv.due_date < today %}
+                <span class="badge" style="font-size: 0.65rem; background: rgba(239,68,68,0.1); color: var(--danger); margin-left: 4px;">Overdue</span>
+              {% endif %}
+            </span>
+          </td>
+          <td><strong>${{ "%.2f"|format(inv.total_amount) }}</strong></td>
+          <td>
+            {% if inv.amount_due > 0 %}
+              <span style="font-weight: 600; color: var(--danger);">${{ "%.2f"|format(inv.amount_due) }}</span>
+            {% else %}
+              <span style="color: var(--primary-teal); font-weight: 600;">$0.00</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if inv.status.value == 'paid' %}
+              <span class="badge badge-active">Paid</span>
+            {% elif inv.status.value == 'confirmed' %}
+              <span class="badge badge-paused">Unpaid</span>
+            {% elif inv.status.value == 'cancelled' %}
+              <span class="badge badge-closed">Cancelled</span>
+            {% else %}
+              <span class="badge badge-draft">Draft</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <a href="/staff/invoices/{{ inv.id }}" class="btn btn-outline btn-sm">
+              View &rarr;
+            </a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            No invoices generated yet. Invoices are automatically generated on subscription billing days.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+

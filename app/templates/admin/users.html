@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}User Management — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>User & Staff Management</h1>
+      <span class="badge badge-admin">Admin Only</span>
+    </div>
+    <p class="view-header-sub">Manage team permissions, invite new staff members, and oversee customer accounts</p>
+  </div>
+  <div class="view-header-actions">
+    <button 
+      class="btn btn-teal" 
+      onclick="document.getElementById('staff-modal').style.display = 'flex'"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <line x1="20" y1="8" x2="20" y2="14"/>
+        <line x1="23" y1="11" x2="17" y2="11"/>
+      </svg>
+      <span>+ Add Staff Member</span>
+    </button>
+  </div>
+</div>
+
+<!-- USERS TABLE -->
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th style="text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="users-table-body">
+      {% for u in users %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--navy); font-size: 0.85rem;">
+                {{ u.full_name[:2].upper() }}
+              </div>
+              <div>
+                <strong style="color: var(--navy);">{{ u.full_name }}</strong>
+                {% if u.id == user.id %}
+                  <span class="badge" style="font-size: 0.7rem; background: rgba(13, 148, 136, 0.1); color: var(--primary-teal);">You</span>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>{{ u.email }}</td>
+          <td>
+            {% if u.role.value == 'admin' %}
+              <span class="badge badge-admin">Admin</span>
+            {% elif u.role.value == 'staff' %}
+              <span class="badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb; font-weight: 600;">Staff</span>
+            {% else %}
+              <span class="badge badge-customer">Customer</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-closed">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}
+          </td>
+          <td style="text-align: right;">
+            {% if u.id != user.id %}
+              <form method="POST" action="/web/users/{{ u.id }}/toggle-status" style="display: inline;">
+                <button type="submit" class="btn btn-outline btn-sm">
+                  {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+            {% else %}
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Current User</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- CREATE STAFF MODAL -->
+<div id="staff-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+  <div style="background: var(--bg-surface); border-radius: var(--radius-lg); max-width: 480px; width: 100%; padding: var(--space-6); box-shadow: var(--shadow-lg);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">Add New Staff Member</h3>
+      <button type="button" onclick="document.getElementById('staff-modal').style.display = 'none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+    </div>
+    
+    <form method="POST" action="/web/users/staff">
+      <div class="form-group">
+        <label for="staff_full_name" class="form-label">Full Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="staff_full_name" name="full_name" class="form-control" placeholder="Alex Morgan" required>
+      </div>
+
+      <div class="form-group">
+        <label for="staff_email" class="form-label">Work Email <span style="color: var(--danger);">*</span></label>
+        <input type="email" id="staff_email" name="email" class="form-control" placeholder="alex@company.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="staff_password" class="form-label">Temporary Password <span style="color: var(--danger);">*</span></label>
+        <input type="password" id="staff_password" name="password" class="form-control" placeholder="•••••••••" required>
+        <span class="form-help">Must be &gt; 8 chars, uppercase, lowercase, special symbol.</span>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('staff-modal').style.display = 'none'">Cancel</button>
+        <button type="submit" class="btn btn-teal">Create Staff Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

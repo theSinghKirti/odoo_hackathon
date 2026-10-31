@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice {{ invoice.invoice_number }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; margin: 0; padding: 40px; }
+    .invoice-box { max-width: 800px; margin: auto; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+    .brand { font-size: 24px; font-weight: 800; color: #0f172a; }
+    .brand span { color: #0d9488; }
+    .inv-title { font-size: 20px; font-weight: 700; color: #0f172a; text-align: right; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    th { border-bottom: 2px solid #cbd5e1; padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; }
+    td { border-bottom: 1px solid #e2e8f0; padding: 12px 8px; font-size: 14px; }
+    .totals { width: 300px; margin-left: auto; margin-bottom: 30px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+    .totals-row.bold { font-size: 16px; font-weight: 700; border-top: 2px solid #0f172a; padding-top: 10px; color: #0f172a; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-unpaid { background: #fef3c7; color: #92400e; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="max-width: 800px; margin: 0 auto 20px auto; display: flex; justify-content: space-between;">
+    <button onclick="window.print()" style="padding: 8px 16px; background: #0d9488; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+      Print / Save as PDF
+    </button>
+    <button onclick="window.close()" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+      Close Window
+    </button>
+  </div>
+
+  <div class="invoice-box">
+    <div class="header">
+      <div>
+        <div class="brand">Subly<span>.</span></div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Subscription Billing Platform</div>
+      </div>
+      <div class="inv-title">
+        <div>INVOICE</div>
+        <div style="font-size: 14px; font-weight: 500; color: #64748b; margin-top: 4px;">{{ invoice.invoice_number }}</div>
+        <div style="margin-top: 6px;">
+          {% if invoice.status.value == 'paid' %}
+            <span class="badge badge-paid">PAID</span>
+          {% else %}
+            <span class="badge badge-unpaid">{{ invoice.status.value|upper }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">Billed To</div>
+        <div style="font-size: 15px; font-weight: 700; color: #0f172a;">{{ invoice.customer.name if invoice.customer else 'Client' }}</div>
+        <div style="font-size: 13px; color: #475569; margin-top: 4px;">
+          {{ invoice.customer.email if invoice.customer else '' }}<br>
+          {{ invoice.customer.address or '' }}
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 13px; margin-bottom: 4px;">Invoice Date: <strong>{{ invoice.invoice_date.strftime('%B %d, %Y') }}</strong></div>
+        <div style="font-size: 13px; margin-bottom: 4px;">Due Date: <strong>{{ invoice.due_date.strftime('%B %d, %Y') }}</strong></div>
+        <div style="font-size: 13px; margin-bottom: 4px;">Terms: <strong>{{ invoice.payment_terms or 'Net 15 Days' }}</strong></div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: right;">Tax</th>
+          <th style="text-align: right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in invoice.lines %}
+          <tr>
+            <td>
+              <strong>{{ line.product.name if line.product else (line.description or 'Item') }}</strong>
+              {% if line.variant %}
+                <span style="font-size: 12px; color: #64748b;">({{ line.variant.attribute_value }})</span>
+              {% endif %}
+            </td>
+            <td style="text-align: center;">{{ line.quantity }}</td>
+            <td style="text-align: right;">${{ "%.2f"|format(line.unit_price) }}</td>
+            <td style="text-align: right;">${{ "%.2f"|format(line.tax_amount) }}</td>
+            <td style="text-align: right; font-weight: 600;">${{ "%.2f"|format(line.line_total) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="totals-row">
+        <span>Subtotal</span>
+        <span>${{ "%.2f"|format(invoice.subtotal) }}</span>
+      </div>
+      {% if invoice.discount_amount > 0 %}
+        <div class="totals-row" style="color: #ef4444;">
+          <span>Discount</span>
+          <span>-${{ "%.2f"|format(invoice.discount_amount) }}</span>
+        </div>
+      {% endif %}
+      <div class="totals-row">
+        <span>Tax Amount</span>
+        <span>${{ "%.2f"|format(invoice.tax_amount) }}</span>
+      </div>
+      <div class="totals-row bold">
+        <span>Total Due</span>
+        <span>${{ "%.2f"|format(invoice.total_amount) }}</span>
+      </div>
+      <div class="totals-row" style="color: #0d9488; font-weight: 600; margin-top: 6px;">
+        <span>Amount Paid</span>
+        <span>${{ "%.2f"|format(invoice.amount_paid) }}</span>
+      </div>
+      <div class="totals-row" style="font-size: 15px; font-weight: 700; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+        <span>Balance Due</span>
+        <span style="color: {% if invoice.amount_due > 0 %}#dc2626{% else %}#0d9488{% endif %};">${{ "%.2f"|format(invoice.amount_due) }}</span>
+      </div>
+    </div>
+
+    <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 12px; color: #94a3b8; text-align: center;">
+      Thank you for your business. Please remit payments according to invoice terms.
+    </div>
+  </div>
+</body>
+</html>
+

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Available Subscription Plans — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>Subscription Plans Catalog</h1>
+      <span class="badge badge-active">{{ plans|length }} Plans Available</span>
+    </div>
+    <p class="view-header-sub">Select the ideal pricing tier and recurring contract tailored for your organization</p>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: var(--space-4);">
+  {% for plan in plans %}
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm); position: relative;">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2);">
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">{{ plan.name }}</h2>
+          <span class="badge badge-customer" style="text-transform: uppercase;">{{ plan.billing_interval.value }}</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); min-height: 40px; margin-bottom: var(--space-4);">
+          {{ plan.description or 'Recurring billing tier with automated renewal provisions.' }}
+        </p>
+
+        <div style="margin-bottom: var(--space-6);">
+          <span style="font-size: 2.25rem; font-weight: 800; color: var(--navy);">${{ "%.2f"|format(plan.base_price) }}</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">/ {{ plan.billing_interval.value }}</span>
+        </div>
+
+        <ul style="list-style: none; padding: 0; margin: 0 0 var(--space-6) 0; font-size: 0.85rem; color: var(--text-main);">
+          <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-teal)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Min Seat / Qty: <strong>{{ plan.min_quantity }}</strong></span>
+          </li>
+          <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-teal)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Pause Allowed: <strong>{% if plan.allow_pause %}Yes{% else %}No{% endif %}</strong></span>
+          </li>
+          <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-teal)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Auto-Renewal: <strong>{% if plan.allow_renewal %}Enabled{% else %}Manual{% endif %}</strong></span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <form method="POST" action="/portal/plans/{{ plan.id }}/request-quote">
+          <button type="submit" class="btn btn-teal" style="width: 100%; padding: 0.75rem;">
+            Request Quote &amp; Subscribe &rarr;
+          </button>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: var(--text-muted);">
+      No subscription plans currently active.
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
+

@@ -131,43 +131,43 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
   - Registration page (`register.html`) with password policy indicators (>8 chars, upper, lower, special).
   - Forgot Password & Reset Password pages.
 
-#### Milestone F2: Product Catalog & Variant Manager Views
-- [ ] Build Product Catalog page (`templates/admin/products.html`):
+#### Milestone F2: Product Catalog & Variant Manager Views *(Completed)*
+- [x] Build Product Catalog page (`templates/admin/products.html`):
   - Filter bar (filter by Software, Service, Add-on, Physical).
   - Live search input using `hx-get` with debounce (`hx-trigger="keyup changed delay:300ms"`).
   - Responsive table showing name, type, sales price, cost price, and status badge.
-- [ ] Build Create/Edit Product Modal (`partials/product_form.html`).
-- [ ] Build Product Variant Manager component (`partials/variant_manager.html`):
+- [x] Build Create/Edit Product Modal (`partials/product_form.html`).
+- [x] Build Product Variant Manager component (`partials/variant_manager.html`):
   - Dynamic rows to add attribute name (e.g. Brand), value (e.g. Odoo), and price surcharge input (+560).
   - Real-time preview of effective sales price.
 
-#### Milestone F3: Subscription Plan Management Views
-- [ ] Build Plan Cards grid view (`templates/admin/plans.html`):
+#### Milestone F3: Subscription Plan Management Views *(Completed)*
+- [x] Build Plan Cards grid view (`templates/admin/plans.html`):
   - Clean cards showing interval badge (Daily, Weekly, Monthly, Yearly), base price, and availability dates.
   - Visual policy indicator chips: Auto-close, Early close, Pause allowed, Renew allowed.
-- [ ] Build Plan Editor modal (`partials/plan_form.html`) with toggle switches for lifecycle policies.
+- [x] Build Plan Editor modal (`partials/plan_form.html`) with toggle switches for lifecycle policies.
 
-#### Milestone F4: Tax & Discount Rules Configuration UI
-- [ ] Build Tax Rules table view (`templates/admin/taxes.html`) with quick create/toggle modal.
-- [ ] Build Discount Rules view (`templates/admin/discounts.html`):
+#### Milestone F4: Tax & Discount Rules Configuration UI *(Completed)*
+- [x] Build Tax Rules table view (`templates/admin/taxes.html`) with quick create/toggle modal.
+- [x] Build Discount Rules view (`templates/admin/discounts.html`):
   - Filter by active/expired.
   - Form supporting fixed amount vs percentage, min spend/qty triggers, start/end datepickers, max uses limit, and product scope selector.
   - Visual progress bar showing usage (`times_used` / `max_uses`).
 
-#### Milestone F5: Quotation Builder & Template Selector
-- [ ] Build Quotation Template Manager (`templates/admin/quotation_templates.html`).
-- [ ] Build Sales Quotation Form (`templates/staff/quotation_form.html`):
+#### Milestone F5: Quotation Builder & Template Selector *(Completed)*
+- [x] Build Quotation Template Manager (`templates/admin/quotation_templates.html`).
+- [x] Build Sales Quotation Form (`templates/staff/quotation_form.html`):
   - "Start from Template" dropdown that pre-populates product lines and validity days.
   - Dynamic line item table: add/remove product, select variant, adjust quantity.
   - Live summary card: Subtotal, Tax breakdown, Discount breakdown, and Total Amount.
-- [ ] Build Quotation Detail View (`templates/staff/quotation_detail.html`):
+- [x] Build Quotation Detail View (`templates/staff/quotation_detail.html`):
   - Action buttons: "Send to Customer", "Print Quotation (Clean Print CSS)", and "Convert to Subscription".
 
-#### Milestone F6: Subscriptions Management Dashboard
-- [ ] Build Subscriptions List view (`templates/staff/subscriptions.html`):
+#### Milestone F6: Subscriptions Management Dashboard *(Completed)*
+- [x] Build Subscriptions List view (`templates/staff/subscriptions.html`):
   - Status tab filters (`All`, `Active`, `Draft`, `Paused`, `Closed`).
   - Table showing Subscription Number, Customer, Plan, Next Billing Date, and Amount.
-- [ ] Build Subscription Detail View (`templates/staff/subscription_detail.html`):
+- [x] Build Subscription Detail View (`templates/staff/subscription_detail.html`):
   - Visual status progress bar: `Draft → Quotation → Confirmed → Active → Closed`.
   - HTMX inline action buttons: Pause, Resume, Close, Renew (triggers inline modal confirmation and partial swap).
   - Tab for line items and attached Add-ons (toggle on/off).

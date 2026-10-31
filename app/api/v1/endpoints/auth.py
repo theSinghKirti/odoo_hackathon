@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
+    RegisterAdminRequest,
     ForgotPasswordRequest,
     ResetPasswordRequest,
     TokenResponse,
@@ -18,6 +19,7 @@ from app.schemas.user import UserResponse
 from app.services.auth_service import (
     authenticate_user,
     register_customer_user,
+    register_admin_user,
     request_password_reset,
     reset_password_with_token,
     AuthenticationError,
@@ -50,6 +52,32 @@ async def register(
             organization_slug=payload.organization_slug,
         )
         return user
+    except PasswordValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except RegistrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/register-admin", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register/admin", response_model=UserResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+async def register_admin(
+    payload: RegisterAdminRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Admin & Company onboarding registration endpoint.
+    Creates a new Organization (tenant) and its primary Admin user.
+    """
+    try:
+        admin_user = await register_admin_user(
+            session=db,
+            organization_name=payload.organization_name,
+            full_name=payload.full_name,
+            email=payload.email,
+            password=payload.password,
+            organization_slug=payload.organization_slug,
+        )
+        return admin_user
     except PasswordValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except RegistrationError as e:
@@ -153,4 +181,3 @@ async def reset_password(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except ResetPasswordError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-

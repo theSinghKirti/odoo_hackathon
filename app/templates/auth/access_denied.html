@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Access Denied (403) — Subly{% endblock %}
+
+{% block content %}
+<div style="min-height: 85vh; display: flex; align-items: center; justify-content: center; padding: var(--space-8) var(--space-4);">
+  <div style="max-width: 580px; width: 100%; background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-lg); padding: var(--space-8); text-align: center;">
+    
+    <!-- Lock / Shield Icon -->
+    <div style="width: 72px; height: 72px; margin: 0 auto var(--space-4) auto; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <circle cx="12" cy="16" r="1.5"/>
+      </svg>
+    </div>
+
+    <!-- Error Badge -->
+    <div style="margin-bottom: var(--space-2);">
+      <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.8rem; font-weight: 700; padding: 4px 10px;">
+        HTTP 403 · Access Forbidden
+      </span>
+    </div>
+
+    <!-- Heading -->
+    <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--navy); margin-bottom: var(--space-2);">
+      Access Denied
+    </h1>
+    <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.5; margin-bottom: var(--space-6);">
+      {{ detail or "You do not have the required permissions or role privileges to access this resource or organization workspace." }}
+    </p>
+
+    <!-- Info Box -->
+    <div style="background: var(--bg-main); border-radius: var(--radius-md); padding: var(--space-4); text-align: left; margin-bottom: var(--space-6); border: 1px solid var(--border);">
+      <div style="display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary-teal); flex-shrink: 0; margin-top: 2px;">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <div style="font-size: 0.85rem; color: var(--text-main);">
+          <strong>Multi-Tenant & Role Isolation:</strong> Subly strictly segregates data by organization boundary and enforces granular permissions (Admin, Staff, Customer).
+        </div>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-left: 28px;">
+        If you believe this is an error, please verify you are signed into the correct company account or contact your system administrator.
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; flex-direction: column; sm-flex-direction: row; gap: 12px; justify-content: center;">
+      <a href="/dashboard" class="btn btn-teal" style="padding: 0.65rem 1.25rem;">
+        Go to Dashboard
+      </a>
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <a href="javascript:history.back()" class="btn btn-outline" style="padding: 0.65rem 1rem;">
+          &larr; Go Back
+        </a>
+        <a href="/login" class="btn btn-outline" style="padding: 0.65rem 1rem;">
+          Sign In Again
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+

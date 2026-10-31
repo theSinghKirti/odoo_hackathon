@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}My Quotations — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>My Quotations</h1>
+      <span class="badge badge-active">{{ quotations|length }} Total</span>
+    </div>
+    <p class="view-header-sub">Review pricing quotes prepared for your organization and accept terms to activate recurring service</p>
+  </div>
+</div>
+
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Quotation #</th>
+        <th>Plan</th>
+        <th>Start Date</th>
+        <th>Expiry Date</th>
+        <th>Total Amount</th>
+        <th>Status</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for q in quotations %}
+        <tr>
+          <td><strong>{{ q.quotation_number }}</strong></td>
+          <td>{{ q.plan.name if q.plan else '—' }}</td>
+          <td>{{ q.start_date.strftime('%Y-%m-%d') }}</td>
+          <td>{{ q.expiry_date.strftime('%Y-%m-%d') }}</td>
+          <td><strong>${{ "%.2f"|format(q.total_amount) }}</strong></td>
+          <td>
+            {% if q.status.value == 'quotation' %}
+              <span class="badge badge-paused">Pending Your Review</span>
+            {% elif q.status.value == 'converted' %}
+              <span class="badge badge-active">Accepted / Active</span>
+            {% else %}
+              <span class="badge badge-draft">{{ q.status.value|title }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            {% if q.status.value == 'quotation' %}
+              <form method="POST" action="/portal/quotations/{{ q.id }}/accept" style="display: inline;" onsubmit="return confirm('Accept this quotation and activate your subscription?');">
+                <button type="submit" class="btn btn-teal btn-sm">
+                  Accept &amp; Subscribe &rarr;
+                </button>
+              </form>
+            {% elif q.subscription %}
+              <a href="/portal/subscriptions/{{ q.subscription.id }}" class="btn btn-outline btn-sm">
+                View Subscription &rarr;
+              </a>
+            {% else %}
+              <span style="font-size: 0.85rem; color: var(--text-muted);">{{ q.status.value|title }}</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            No quotations found. <a href="/portal/plans" style="color: var(--primary-teal); font-weight: 600;">Explore our plans</a> to request a quote.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+

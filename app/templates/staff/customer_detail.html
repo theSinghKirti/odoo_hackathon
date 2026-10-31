@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.name }} — Customer Details — Subly{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: var(--space-4);">
+  <a href="/staff/customers" style="color: var(--text-muted); text-decoration: none; font-size: 0.85rem; font-weight: 500;">
+    &larr; Back to Customers Directory
+  </a>
+</div>
+
+<div class="view-header" style="align-items: flex-start;">
+  <div class="view-header-left">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 6px;">
+      <div style="width: 44px; height: 44px; border-radius: var(--radius-md); background: rgba(13, 148, 136, 0.1); color: var(--primary-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;">
+        {{ customer.name[:2].upper() }}
+      </div>
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--navy); margin: 0;">{{ customer.name }}</h1>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">{{ customer.email }}</span>
+          {% if customer.is_active %}
+            <span class="badge badge-active">Active</span>
+          {% else %}
+            <span class="badge badge-closed">Inactive</span>
+          {% endif %}
+          {% if customer.user %}
+            <span class="badge badge-customer">Portal Linked</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="view-header-actions">
+    <button class="btn btn-outline" onclick="document.getElementById('edit-customer-modal').style.display = 'flex'">
+      Edit Customer
+    </button>
+    <a href="/staff/quotations/new?customer_id={{ customer.id }}" class="btn btn-teal">
+      + Create Quote
+    </a>
+  </div>
+</div>
+
+<!-- INFO CARDS GRID -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: var(--space-6);">
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Contact & Address</span>
+    <div style="margin-top: 8px; font-size: 0.9rem;">
+      <div><strong>Phone:</strong> {{ customer.phone or 'Not provided' }}</div>
+      <div style="margin-top: 4px;"><strong>Address:</strong> {{ customer.address or 'Not provided' }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Subscription Metrics</span>
+    <div style="margin-top: 8px; font-size: 0.9rem;">
+      <div><strong>Total Subscriptions:</strong> {{ subscriptions|length }}</div>
+      <div style="margin-top: 4px;">
+        <strong>Active:</strong> 
+        {{ subscriptions|selectattr('status.value', 'equalto', 'active')|list|length }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">Invoicing Summary</span>
+    <div style="margin-top: 8px; font-size: 0.9rem;">
+      <div><strong>Total Invoices:</strong> {{ invoices|length }}</div>
+      <div style="margin-top: 4px;">
+        <strong>Recorded Payments:</strong> {{ payments|length }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TABS SECTION: HISTORY -->
+<div style="border-bottom: 1px solid var(--border); display: flex; gap: 20px; margin-bottom: var(--space-4);">
+  <button type="button" class="tab-btn active" onclick="showTab('subs-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; border-bottom: 2px solid var(--primary-teal); color: var(--primary-teal); cursor: pointer;">
+    Subscriptions ({{ subscriptions|length }})
+  </button>
+  <button type="button" class="tab-btn" onclick="showTab('invoices-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; color: var(--text-muted); cursor: pointer;">
+    Invoices ({{ invoices|length }})
+  </button>
+  <button type="button" class="tab-btn" onclick="showTab('quotes-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; color: var(--text-muted); cursor: pointer;">
+    Quotations ({{ quotations|length }})
+  </button>
+  <button type="button" class="tab-btn" onclick="showTab('payments-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; color: var(--text-muted); cursor: pointer;">
+    Payments ({{ payments|length }})
+  </button>
+</div>
+
+<!-- TAB 1: SUBSCRIPTIONS -->
+<div id="subs-tab" class="tab-content">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Start Date</th>
+          <th>Next Billing</th>
+          <th>Total</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscriptions %}
+          <tr>
+            <td><strong>{{ s.subscription_number }}</strong></td>
+            <td>{{ s.plan.name if s.plan else '—' }}</td>
+            <td>
+              {% if s.status.value == 'active' %}
+                <span class="badge badge-active">Active</span>
+              {% elif s.status.value == 'paused' %}
+                <span class="badge badge-paused">Paused</span>
+              {% else %}
+                <span class="badge badge-closed">{{ s.status.value|title }}</span>
+              {% endif %}
+            </td>
+            <td>{{ s.start_date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ s.next_billing_date.strftime('%Y-%m-%d') }}</td>
+            <td><strong>${{ "%.2f"|format(s.total_amount) }}</strong></td>
+            <td style="text-align: right;">
+              <a href="/staff/subscriptions/{{ s.id }}" class="btn btn-outline btn-sm">Manage &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">No subscriptions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 2: INVOICES -->
+<div id="invoices-tab" class="tab-content" style="display: none;">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Due</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+          <tr>
+            <td><strong>{{ inv.invoice_number }}</strong></td>
+            <td>{{ inv.invoice_date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ inv.due_date.strftime('%Y-%m-%d') }}</td>
+            <td>
+              {% if inv.status.value == 'paid' %}
+                <span class="badge badge-active">Paid</span>
+              {% elif inv.status.value == 'confirmed' %}
+                <span class="badge badge-paused">Unpaid</span>
+              {% else %}
+                <span class="badge badge-draft">{{ inv.status.value|title }}</span>
+              {% endif %}
+            </td>
+            <td>${{ "%.2f"|format(inv.total_amount) }}</td>
+            <td><strong style="color: {% if inv.amount_due > 0 %}var(--danger){% else %}inherit{% endif %};">${{ "%.2f"|format(inv.amount_due) }}</strong></td>
+            <td style="text-align: right;">
+              <a href="/staff/invoices/{{ inv.id }}" class="btn btn-outline btn-sm">View &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">No invoices generated yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 3: QUOTATIONS -->
+<div id="quotes-tab" class="tab-content" style="display: none;">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Quote #</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Total</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in quotations %}
+          <tr>
+            <td><strong>{{ q.quotation_number }}</strong></td>
+            <td>{{ q.plan.name if q.plan else '—' }}</td>
+            <td><span class="badge badge-active">{{ q.status.value|title }}</span></td>
+            <td>{{ q.start_date.strftime('%Y-%m-%d') }}</td>
+            <td>${{ "%.2f"|format(q.total_amount) }}</td>
+            <td style="text-align: right;">
+              <a href="/staff/quotations/{{ q.id }}" class="btn btn-outline btn-sm">Details &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">No quotations found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 4: PAYMENTS -->
+<div id="payments-tab" class="tab-content" style="display: none;">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tx ID</th>
+          <th>Invoice</th>
+          <th>Method</th>
+          <th>Amount</th>
+          <th>Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+          <tr>
+            <td>#{{ p.id }}</td>
+            <td>{{ p.invoice.invoice_number if p.invoice else '—' }}</td>
+            <td><span class="badge badge-customer">{{ p.payment_method.value|replace('_', ' ')|title }}</span></td>
+            <td><strong style="color: var(--primary-teal);">${{ "%.2f"|format(p.amount) }}</strong></td>
+            <td>{{ p.payment_date.strftime('%Y-%m-%d') }}</td>
+            <td><span class="badge badge-active">{{ p.status.value|title }}</span></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">No payments recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div id="edit-customer-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+  <div style="background: var(--bg-surface); border-radius: var(--radius-lg); max-width: 500px; width: 100%; padding: var(--space-6); box-shadow: var(--shadow-lg);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">Edit Customer</h3>
+      <button type="button" onclick="document.getElementById('edit-customer-modal').style.display = 'none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+    </div>
+    
+    <form method="POST" action="/web/customers/{{ customer.id }}">
+      <div class="form-group">
+        <label for="edit_name" class="form-label">Client Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="edit_name" name="name" class="form-control" value="{{ customer.name }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="edit_phone" class="form-label">Phone Number</label>
+        <input type="text" id="edit_phone" name="phone" class="form-control" value="{{ customer.phone or '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="edit_address" class="form-label">Billing Address</label>
+        <textarea id="edit_address" name="address" class="form-control" rows="2">{{ customer.address or '' }}</textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('edit-customer-modal').style.display = 'none'">Cancel</button>
+        <button type="submit" class="btn btn-teal">Update Profile</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.style.borderBottom = 'none';
+    b.style.color = 'var(--text-muted)';
+  });
+  document.getElementById(tabId).style.display = 'block';
+  btn.style.borderBottom = '2px solid var(--primary-teal)';
+  btn.style.color = 'var(--primary-teal)';
+}
+</script>
+{% endblock %}
+

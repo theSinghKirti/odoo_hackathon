@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Payments — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>Payment Management</h1>
+      <span class="badge badge-active">{{ payments|length }} Total</span>
+    </div>
+    <p class="view-header-sub">Track received revenue transactions, monitor outstanding invoice balances, and record offline settlements</p>
+  </div>
+  <div class="view-header-actions">
+    <button 
+      class="btn btn-teal" 
+      onclick="document.getElementById('record-payment-modal').style.display = 'flex'"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="16"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      <span>+ Record Payment</span>
+    </button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div style="border-bottom: 1px solid var(--border); display: flex; gap: 20px; margin-bottom: var(--space-4);">
+  <button type="button" class="tab-btn active" onclick="showTab('all-payments-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; border-bottom: 2px solid var(--primary-teal); color: var(--primary-teal); cursor: pointer;">
+    All Transactions ({{ payments|length }})
+  </button>
+  <button type="button" class="tab-btn" onclick="showTab('outstanding-tab', this)" style="padding: 10px 4px; font-weight: 600; border: none; background: none; color: var(--text-muted); cursor: pointer;">
+    Outstanding Balances ({{ outstanding_invoices|length }})
+  </button>
+</div>
+
+<!-- TAB 1: ALL PAYMENTS -->
+<div id="all-payments-tab" class="tab-content">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tx ID</th>
+          <th>Customer</th>
+          <th>Invoice #</th>
+          <th>Method</th>
+          <th>Amount</th>
+          <th>Payment Date</th>
+          <th>Reference / Note</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+          <tr>
+            <td><strong>#{{ p.id }}</strong></td>
+            <td>
+              <a href="/staff/customers/{{ p.customer_id }}" style="font-weight: 600; color: var(--navy); text-decoration: none;">
+                {{ p.customer.name if p.customer else '—' }}
+              </a>
+            </td>
+            <td>
+              {% if p.invoice %}
+                <a href="/staff/invoices/{{ p.invoice.id }}" style="color: var(--primary-teal); font-weight: 600;">
+                  {{ p.invoice.invoice_number }}
+                </a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td><span class="badge badge-customer">{{ p.payment_method.value|replace('_', ' ')|title }}</span></td>
+            <td><strong style="color: var(--primary-teal);">${{ "%.2f"|format(p.amount) }}</strong></td>
+            <td>{{ p.payment_date.strftime('%Y-%m-%d') }}</td>
+            <td style="color: var(--text-muted); font-size: 0.85rem;">{{ p.note or p.razorpay_payment_id or '—' }}</td>
+            <td><span class="badge badge-active">{{ p.status.value|title }}</span></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">No payments recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 2: OUTSTANDING INVOICES -->
+<div id="outstanding-tab" class="tab-content" style="display: none;">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Customer</th>
+          <th>Due Date</th>
+          <th>Total Amount</th>
+          <th>Amount Due</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in outstanding_invoices %}
+          <tr>
+            <td><strong>{{ inv.invoice_number }}</strong></td>
+            <td>{{ inv.customer.name if inv.customer else '—' }}</td>
+            <td>
+              <span style="{% if inv.due_date < today %}color: var(--danger); font-weight: 600;{% endif %}">
+                {{ inv.due_date.strftime('%Y-%m-%d') }}
+                {% if inv.due_date < today %}
+                  <span class="badge" style="font-size: 0.65rem; background: rgba(239,68,68,0.1); color: var(--danger); margin-left: 4px;">Past Due</span>
+                {% endif %}
+              </span>
+            </td>
+            <td>${{ "%.2f"|format(inv.total_amount) }}</td>
+            <td><strong style="color: var(--danger);">${{ "%.2f"|format(inv.amount_due) }}</strong></td>
+            <td><span class="badge badge-paused">Unpaid</span></td>
+            <td style="text-align: right;">
+              <a href="/staff/invoices/{{ inv.id }}" class="btn btn-teal btn-sm">Settle Payment &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No outstanding invoices! All accounts are up to date.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- RECORD PAYMENT MODAL -->
+<div id="record-payment-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+  <div style="background: var(--bg-surface); border-radius: var(--radius-lg); max-width: 500px; width: 100%; padding: var(--space-6); box-shadow: var(--shadow-lg);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">Record Payment</h3>
+      <button type="button" onclick="document.getElementById('record-payment-modal').style.display = 'none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+    </div>
+    
+    <form method="POST" action="/web/payments">
+      <div class="form-group">
+        <label for="inv_select" class="form-label">Select Unpaid Invoice <span style="color: var(--danger);">*</span></label>
+        <select id="inv_select" name="invoice_id" class="form-control" required onchange="updateMaxPay(this)">
+          <option value="">-- Choose Invoice --</option>
+          {% for inv in outstanding_invoices %}
+            <option value="{{ inv.id }}" data-due="{{ inv.amount_due }}" data-cust="{{ inv.customer_id }}">
+              {{ inv.invoice_number }} — {{ inv.customer.name if inv.customer else 'Client' }} (Due: ${{ "%.2f"|format(inv.amount_due) }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <input type="hidden" name="customer_id" id="modal_cust_id" value="">
+
+      <div class="form-group">
+        <label for="p_amt" class="form-label">Payment Amount ($) <span style="color: var(--danger);">*</span></label>
+        <input type="number" step="0.01" id="p_amt" name="amount" class="form-control" placeholder="0.00" required>
+      </div>
+
+      <div class="form-group">
+        <label for="p_meth" class="form-label">Payment Method <span style="color: var(--danger);">*</span></label>
+        <select id="p_meth" name="payment_method" class="form-control" required>
+          <option value="bank_transfer">Bank Transfer / Wire</option>
+          <option value="cheque">Cheque</option>
+          <option value="cash">Cash</option>
+          <option value="razorpay">Razorpay / Card</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="p_dt" class="form-label">Payment Date <span style="color: var(--danger);">*</span></label>
+        <input type="date" id="p_dt" name="payment_date" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="p_nt" class="form-label">Transaction Reference</label>
+        <input type="text" id="p_nt" name="note" class="form-control" placeholder="Wire ref #, cheque ID, or receipt note">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('record-payment-modal').style.display = 'none'">Cancel</button>
+        <button type="submit" class="btn btn-teal">Save Payment Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.style.borderBottom = 'none';
+    b.style.color = 'var(--text-muted)';
+  });
+  document.getElementById(tabId).style.display = 'block';
+  btn.style.borderBottom = '2px solid var(--primary-teal)';
+  btn.style.color = 'var(--primary-teal)';
+}
+
+function updateMaxPay(selectEl) {
+  const selected = selectEl.options[selectEl.selectedIndex];
+  const due = selected.getAttribute('data-due');
+  const cust = selected.getAttribute('data-cust');
+  if (due) {
+    document.getElementById('p_amt').value = parseFloat(due).toFixed(2);
+    document.getElementById('p_amt').max = parseFloat(due).toFixed(2);
+  }
+  if (cust) {
+    document.getElementById('modal_cust_id').value = cust;
+  }
+}
+</script>
+{% endblock %}
+

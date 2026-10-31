@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}My Invoices & Payments — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>My Invoices & Receipts</h1>
+      <span class="badge badge-active">{{ invoices|length }} Invoices</span>
+    </div>
+    <p class="view-header-sub">View billing history, download official printable statements, and settle outstanding balances</p>
+  </div>
+</div>
+
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Invoice Number</th>
+        <th>Date</th>
+        <th>Due Date</th>
+        <th>Total Amount</th>
+        <th>Amount Due</th>
+        <th>Status</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td><strong>{{ inv.invoice_number }}</strong></td>
+          <td>{{ inv.invoice_date.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <span style="{% if inv.amount_due > 0 and inv.due_date < today %}color: var(--danger); font-weight: 600;{% endif %}">
+              {{ inv.due_date.strftime('%Y-%m-%d') }}
+              {% if inv.amount_due > 0 and inv.due_date < today %}
+                <span class="badge" style="font-size: 0.65rem; background: rgba(239,68,68,0.1); color: var(--danger);">Overdue</span>
+              {% endif %}
+            </span>
+          </td>
+          <td><strong>${{ "%.2f"|format(inv.total_amount) }}</strong></td>
+          <td>
+            {% if inv.amount_due > 0 %}
+              <strong style="color: var(--danger);">${{ "%.2f"|format(inv.amount_due) }}</strong>
+            {% else %}
+              <span style="color: var(--primary-teal); font-weight: 600;">$0.00</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if inv.status.value == 'paid' %}
+              <span class="badge badge-active">Paid</span>
+            {% elif inv.status.value == 'confirmed' %}
+              <span class="badge badge-paused">Unpaid</span>
+            {% else %}
+              <span class="badge badge-draft">{{ inv.status.value|title }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+              <a href="/staff/invoices/{{ inv.id }}/print" target="_blank" class="btn btn-outline btn-sm">
+                PDF / Print
+              </a>
+              {% if inv.amount_due > 0 %}
+                <button 
+                  type="button" 
+                  class="btn btn-teal btn-sm" 
+                  onclick="openCheckoutModal('{{ inv.id }}', '{{ inv.invoice_number }}', '{{ inv.amount_due }}')"
+                >
+                  Pay Now (${{ "%.2f"|format(inv.amount_due) }})
+                </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            No invoices found for your account.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- PAYMENT CHECKOUT MODAL (RAZORPAY / CARD SIMULATION) -->
+<div id="checkout-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+  <div style="background: var(--bg-surface); border-radius: var(--radius-lg); max-width: 480px; width: 100%; padding: var(--space-6); box-shadow: var(--shadow-lg);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--navy); margin: 0;">Online Payment Checkout</h3>
+      <button type="button" onclick="document.getElementById('checkout-modal').style.display = 'none'" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+    </div>
+
+    <form method="POST" action="/portal/invoices/pay">
+      <input type="hidden" name="invoice_id" id="checkout_invoice_id" value="">
+
+      <div style="background: var(--bg-main); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">Invoice Reference:</div>
+        <div style="font-size: 1.1rem; font-weight: 700; color: var(--navy);" id="checkout_invoice_num">—</div>
+        <div style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);">Amount to Charge:</div>
+        <div style="font-size: 1.6rem; font-weight: 800; color: var(--primary-teal);" id="checkout_amount">—</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Payment Gateway / Method</label>
+        <select name="payment_method" class="form-control" required>
+          <option value="razorpay">Razorpay Checkout (UPI, Cards, NetBanking)</option>
+          <option value="credit_card">Credit / Debit Card</option>
+          <option value="bank_transfer">Direct Bank Wire</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="card_num" class="form-label">Card Number (Optional Demo)</label>
+        <input type="text" id="card_num" class="form-control" placeholder="•••• •••• •••• 4242">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: var(--space-6);">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('checkout-modal').style.display = 'none'">Cancel</button>
+        <button type="submit" class="btn btn-teal">Authorize &amp; Pay Now</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openCheckoutModal(invId, invNum, amt) {
+  document.getElementById('checkout_invoice_id').value = invId;
+  document.getElementById('checkout_invoice_num').textContent = invNum;
+  document.getElementById('checkout_amount').textContent = '$' + parseFloat(amt).toFixed(2);
+  document.getElementById('checkout-modal').style.display = 'flex';
+}
+</script>
+{% endblock %}
+

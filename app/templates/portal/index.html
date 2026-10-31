@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Portal — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>Welcome, {{ user.full_name }}</h1>
+      <span class="badge badge-customer">Customer Portal</span>
+    </div>
+    <p class="view-header-sub">Manage your active SaaS subscriptions, review quotations, and settle outstanding invoices</p>
+  </div>
+  <div class="view-header-actions">
+    <a href="/portal/plans" class="btn btn-teal">
+      Browse Available Plans &rarr;
+    </a>
+  </div>
+</div>
+
+<!-- STATS SUMMARY CARDS -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: var(--space-6);">
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Active Subscriptions</span>
+    <div style="font-size: 1.8rem; font-weight: 800; color: var(--navy); margin-top: 4px;">
+      {{ subscriptions|selectattr('status.value', 'equalto', 'active')|list|length }}
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Pending Quotations</span>
+    <div style="font-size: 1.8rem; font-weight: 800; color: var(--navy); margin-top: 4px;">
+      {{ quotations|selectattr('status.value', 'equalto', 'quotation')|list|length }}
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Unpaid Invoices</span>
+    <div style="font-size: 1.8rem; font-weight: 800; color: {% if unpaid_invoices %}var(--danger){% else %}var(--navy){% endif %}; margin-top: 4px;">
+      {{ unpaid_invoices|length }}
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);">
+    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Total Balance Due</span>
+    <div style="font-size: 1.8rem; font-weight: 800; color: {% if total_due > 0 %}var(--danger){% else %}var(--primary-teal){% endif %}; margin-top: 4px;">
+      ${{ "%.2f"|format(total_due) }}
+    </div>
+  </div>
+</div>
+
+<!-- ACTIVE SUBSCRIPTIONS SUMMARY -->
+<div style="margin-bottom: var(--space-6);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+    <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--navy); margin: 0;">Your Subscriptions</h2>
+    <a href="/portal/subscriptions" style="font-size: 0.85rem; color: var(--primary-teal); font-weight: 600; text-decoration: none;">View All &rarr;</a>
+  </div>
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Contract #</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Next Billing Date</th>
+          <th>Amount</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscriptions[:3] %}
+          <tr>
+            <td><strong>{{ s.subscription_number }}</strong></td>
+            <td>{{ s.plan.name if s.plan else '—' }}</td>
+            <td>
+              {% if s.status.value == 'active' %}
+                <span class="badge badge-active">Active</span>
+              {% elif s.status.value == 'paused' %}
+                <span class="badge badge-paused">Paused</span>
+              {% else %}
+                <span class="badge badge-closed">{{ s.status.value|title }}</span>
+              {% endif %}
+            </td>
+            <td>{{ s.next_billing_date.strftime('%B %d, %Y') }}</td>
+            <td><strong>${{ "%.2f"|format(s.total_amount) }}</strong></td>
+            <td style="text-align: right;">
+              <a href="/portal/subscriptions/{{ s.id }}" class="btn btn-outline btn-sm">Manage &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">
+              You do not have any active subscriptions. <a href="/portal/plans" style="color: var(--primary-teal); font-weight: 600;">Browse Plans</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- OUTSTANDING INVOICES SUMMARY -->
+<div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+    <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--navy); margin: 0;">Recent Invoices</h2>
+    <a href="/portal/invoices" style="font-size: 0.85rem; color: var(--primary-teal); font-weight: 600; text-decoration: none;">View All &rarr;</a>
+  </div>
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Due Date</th>
+          <th>Total</th>
+          <th>Amount Due</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices[:4] %}
+          <tr>
+            <td><strong>{{ inv.invoice_number }}</strong></td>
+            <td>{{ inv.invoice_date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ inv.due_date.strftime('%Y-%m-%d') }}</td>
+            <td>${{ "%.2f"|format(inv.total_amount) }}</td>
+            <td><strong style="color: {% if inv.amount_due > 0 %}var(--danger){% else %}var(--primary-teal){% endif %};">${{ "%.2f"|format(inv.amount_due) }}</strong></td>
+            <td>
+              {% if inv.status.value == 'paid' %}
+                <span class="badge badge-active">Paid</span>
+              {% else %}
+                <span class="badge badge-paused">Unpaid</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              <a href="/portal/invoices/{{ inv.id }}" class="btn btn-outline btn-sm">View &rarr;</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">No invoices found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

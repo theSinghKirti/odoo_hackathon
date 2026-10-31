@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}My Subscriptions — Subly{% endblock %}
+
+{% block content %}
+<div class="view-header">
+  <div class="view-header-left">
+    <div class="view-header-title">
+      <h1>My Subscriptions</h1>
+      <span class="badge badge-active">{{ subscriptions|length }} Total</span>
+    </div>
+    <p class="view-header-sub">Manage recurring service contracts, monitor renewal schedules, and execute plan lifecycle actions</p>
+  </div>
+</div>
+
+<div class="table-card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Subscription #</th>
+        <th>Plan</th>
+        <th>Start Date</th>
+        <th>Next Billing</th>
+        <th>Total / Cycle</th>
+        <th>Status</th>
+        <th style="text-align: right;">Permitted Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in subscriptions %}
+        <tr>
+          <td><strong>{{ s.subscription_number }}</strong></td>
+          <td>{{ s.plan.name if s.plan else '—' }}</td>
+          <td>{{ s.start_date.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <strong>{{ s.next_billing_date.strftime('%B %d, %Y') }}</strong>
+          </td>
+          <td><strong>${{ "%.2f"|format(s.total_amount) }}</strong></td>
+          <td>
+            {% if s.status.value == 'active' %}
+              <span class="badge badge-active">Active</span>
+            {% elif s.status.value == 'paused' %}
+              <span class="badge badge-paused">Paused</span>
+            {% else %}
+              <span class="badge badge-closed">{{ s.status.value|title }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+              {% if s.status.value == 'active' and s.allow_pause %}
+                <form method="POST" action="/portal/subscriptions/{{ s.id }}/pause" style="display: inline;">
+                  <button type="submit" class="btn btn-outline btn-sm">Pause</button>
+                </form>
+              {% elif s.status.value == 'paused' %}
+                <form method="POST" action="/portal/subscriptions/{{ s.id }}/resume" style="display: inline;">
+                  <button type="submit" class="btn btn-teal btn-sm">Resume</button>
+                </form>
+              {% endif %}
+
+              {% if s.status.value != 'closed' and s.allow_renewal %}
+                <form method="POST" action="/portal/subscriptions/{{ s.id }}/renew" style="display: inline;">
+                  <button type="submit" class="btn btn-outline btn-sm">Renew</button>
+                </form>
+              {% endif %}
+
+              {% if s.status.value != 'closed' and s.allow_early_close %}
+                <form method="POST" action="/portal/subscriptions/{{ s.id }}/close" style="display: inline;" onsubmit="return confirm('Cancel and close this subscription contract?');">
+                  <button type="submit" class="btn btn-outline btn-sm" style="color: var(--danger);">Close</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            No personal subscriptions found. <a href="/portal/plans" style="color: var(--primary-teal); font-weight: 600;">Browse Plans</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
