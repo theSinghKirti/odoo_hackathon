@@ -1,0 +1,149 @@
+<div class="table-responsive" style="margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+  <table class="data-table" id="quote-lines-table">
+    <thead>
+      <tr>
+        <th style="width: 22%;">Product</th>
+        <th style="width: 14%;">Variant</th>
+        <th style="width: 16%;">Description</th>
+        <th style="width: 8%;">Qty</th>
+        <th style="width: 11%;">Unit Price</th>
+        <th style="width: 10%;">Discount</th>
+        <th style="width: 9%;">Tax</th>
+        <th style="width: 10%;">Total</th>
+        <th style="width: 4%; text-align: right;"></th>
+      </tr>
+    </thead>
+    <tbody id="quote-lines-body">
+      {% if lines and lines|length > 0 %}
+        {% for line in lines %}
+          <tr class="quote-line-row">
+            <td>
+              <select name="line_product_id[]" class="form-select form-input-sm line-product-select" onchange="onProductChange(this); calculateQuoteTotals();" required>
+                <option value="">-- Choose Product --</option>
+                {% for prod in products %}
+                  <option value="{{ prod.id }}" data-price="{{ prod.sales_price }}" {% if line.product_id|string == prod.id|string %}selected{% endif %}>
+                    {{ prod.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="line_variant_id[]" class="form-select form-input-sm line-variant-select" onchange="calculateQuoteTotals();">
+                <option value="">None (Standard)</option>
+                {% for prod in products %}
+                  {% if prod.variants %}
+                    {% for v in prod.variants %}
+                      <option value="{{ v.id }}" data-prod="{{ prod.id }}" data-extra="{{ v.price_extra }}" {% if line.variant_id|string == v.id|string %}selected{% endif %}>
+                        {{ v.attribute_value }} (+₹{{ v.price_extra }})
+                      </option>
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <input type="text" name="line_description[]" class="form-input form-input-sm" placeholder="Line note" value="{{ line.description or '' }}" style="margin-bottom: 0;">
+            </td>
+            <td>
+              <input type="number" name="line_quantity[]" class="form-input form-input-sm line-qty" min="1" value="{{ line.quantity or 1 }}" oninput="calculateQuoteTotals();" style="margin-bottom: 0;" required>
+            </td>
+            <td>
+              <input type="number" step="0.01" min="0" name="line_unit_price[]" class="form-input form-input-sm line-price" value="{{ line.unit_price or '0.00' }}" oninput="calculateQuoteTotals();" style="margin-bottom: 0;" required>
+            </td>
+            <td>
+              <select name="line_discount_id[]" class="form-select form-input-sm line-discount" onchange="calculateQuoteTotals();">
+                <option value="" data-pct="0">None</option>
+                {% for d in discounts %}
+                  <option value="{{ d.id }}" data-type="{{ d.discount_type.value if d.discount_type.value is defined else d.discount_type }}" data-val="{{ d.discount_value }}" {% if line.discount_rule_id|string == d.id|string %}selected{% endif %}>
+                    {{ d.name }} ({{ d.discount_value }}{{ '%' if d.discount_type == 'percentage' or d.discount_type.value == 'percentage' else '₹' }})
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="line_tax_id[]" class="form-select form-input-sm line-tax" onchange="calculateQuoteTotals();">
+                <option value="" data-rate="0">None</option>
+                {% for t in taxes %}
+                  <option value="{{ t.id }}" data-rate="{{ t.rate }}" {% if line.tax_rule_id|string == t.id|string %}selected{% endif %}>
+                    {{ t.name }} ({{ t.rate }}%)
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <span class="line-total-text" style="font-weight: 700; color: var(--navy);">₹0.00</span>
+            </td>
+            <td style="text-align: right;">
+              <button type="button" class="btn-remove-line" onclick="removeQuoteLine(this);" style="background: none; border: none; color: var(--danger); cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <!-- Default Initial Row -->
+        <tr class="quote-line-row">
+          <td>
+            <select name="line_product_id[]" class="form-select form-input-sm line-product-select" onchange="onProductChange(this); calculateQuoteTotals();" required>
+              <option value="">-- Choose Product --</option>
+              {% for prod in products %}
+                <option value="{{ prod.id }}" data-price="{{ prod.sales_price }}">{{ prod.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="line_variant_id[]" class="form-select form-input-sm line-variant-select" onchange="calculateQuoteTotals();">
+              <option value="">None (Standard)</option>
+              {% for prod in products %}
+                {% if prod.variants %}
+                  {% for v in prod.variants %}
+                    <option value="{{ v.id }}" data-prod="{{ prod.id }}" data-extra="{{ v.price_extra }}">
+                      {{ v.attribute_value }} (+₹{{ v.price_extra }})
+                    </option>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="text" name="line_description[]" class="form-input form-input-sm" placeholder="Line note" style="margin-bottom: 0;">
+          </td>
+          <td>
+            <input type="number" name="line_quantity[]" class="form-input form-input-sm line-qty" min="1" value="1" oninput="calculateQuoteTotals();" style="margin-bottom: 0;" required>
+          </td>
+          <td>
+            <input type="number" step="0.01" min="0" name="line_unit_price[]" class="form-input form-input-sm line-price" value="0.00" oninput="calculateQuoteTotals();" style="margin-bottom: 0;" required>
+          </td>
+          <td>
+            <select name="line_discount_id[]" class="form-select form-input-sm line-discount" onchange="calculateQuoteTotals();">
+              <option value="" data-pct="0">None</option>
+              {% for d in discounts %}
+                <option value="{{ d.id }}" data-type="{{ d.discount_type.value if d.discount_type.value is defined else d.discount_type }}" data-val="{{ d.discount_value }}">
+                  {{ d.name }} ({{ d.discount_value }}{{ '%' if d.discount_type == 'percentage' or d.discount_type.value == 'percentage' else '₹' }})
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="line_tax_id[]" class="form-select form-input-sm line-tax" onchange="calculateQuoteTotals();">
+              <option value="" data-rate="0">None</option>
+              {% for t in taxes %}
+                <option value="{{ t.id }}" data-rate="{{ t.rate }}">
+                  {{ t.name }} ({{ t.rate }}%)
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <span class="line-total-text" style="font-weight: 700; color: var(--navy);">₹0.00</span>
+          </td>
+          <td style="text-align: right;">
+            <button type="button" class="btn-remove-line" onclick="removeQuoteLine(this);" style="background: none; border: none; color: var(--danger); cursor: pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

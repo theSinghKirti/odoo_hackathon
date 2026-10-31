@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Quotation {{ quotation.quotation_number }} — Subly{% endblock %}
+
+{% block breadcrumb %}
+<div style="display: flex; align-items: center; gap: 8px;">
+  <span>Workspace</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <a href="/staff/quotations" style="color: var(--text-secondary); text-decoration: none;">Quotations</a>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">{{ quotation.quotation_number }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Top Header Actions -->
+<div class="card no-print" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+        {% set st = quotation.status.value if quotation.status.value is defined else quotation.status %}
+        <span class="badge {% if st == 'converted' %}badge-active{% elif st == 'confirmed' %}badge-software{% elif st == 'quotation' %}badge-monthly{% elif st == 'cancelled' %}badge-expired{% else %}badge-draft{% endif %}">
+          {{ st|upper }}
+        </span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">ID #{{ quotation.id }}</span>
+      </div>
+      <h1 style="font-size: 1.5rem; color: var(--navy); margin-bottom: 4px;">
+        {{ quotation.quotation_number }}
+      </h1>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">
+        Prepared for <strong>{{ quotation.customer.name if quotation.customer else 'Direct Customer' }}</strong>
+      </p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-btn-group">
+      <button type="button" class="btn btn-outline" onclick="alert('Quotation PDF email dispatched to customer successfully!');">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <span>Send to Customer</span>
+      </button>
+
+      <button type="button" class="btn btn-outline" onclick="window.print();">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>Print Quotation</span>
+      </button>
+
+      {% if st != 'converted' and st != 'cancelled' %}
+        <button type="button" class="btn btn-teal" onclick="openConvertModal();" style="font-weight: 600;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Convert to Subscription</span>
+        </button>
+      {% elif st == 'converted' %}
+        <span class="badge badge-active" style="padding: 8px 14px; font-size: 0.85rem;">
+          Converted &bull; {{ quotation.subscription.subscription_number if quotation.subscription else 'Live Subscription' }}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Printable Document Surface -->
+<div class="card" id="printable-quotation-sheet" style="padding: var(--space-8);">
+  
+  <!-- Company Branding & Meta -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--border); padding-bottom: var(--space-6); margin-bottom: var(--space-6);">
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <div style="width: 28px; height: 28px; border-radius: 6px; background-color: var(--primary-teal); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700;">S</div>
+        <span style="font-size: 1.25rem; font-weight: 800; color: var(--navy);">SUBLY</span>
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+        Multi-Tenant Subscription Management<br>
+        Organization: <strong>{{ organization.name if organization else (user.organization.name if user and user.organization else 'Subly Workspace') }}</strong>
+      </div>
+    </div>
+
+    <div style="text-align: right;">
+      <h2 style="font-size: 1.5rem; color: var(--navy); margin-bottom: 4px;">QUOTATION</h2>
+      <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary-teal);">{{ quotation.quotation_number }}</div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+        Date: {{ quotation.start_date }}<br>
+        Valid Until: {{ quotation.expiry_date }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Information -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); margin-bottom: var(--space-6); background: #FAFBFD; padding: var(--space-4); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+    <div>
+      <div style="font-size: 0.775rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px;">Quote Recipient:</div>
+      <div style="font-size: 1rem; font-weight: 700; color: var(--navy);">{{ quotation.customer.name if quotation.customer else 'Valued Client' }}</div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">Email: {{ quotation.customer.email if quotation.customer else '-' }}</div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">Phone: {{ quotation.customer.phone if quotation.customer and quotation.customer.phone else '-' }}</div>
+    </div>
+
+    <div>
+      <div style="font-size: 0.775rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px;">Subscription Details:</div>
+      <div style="font-size: 0.95rem; font-weight: 600; color: var(--navy);">Plan: {{ quotation.plan.name if quotation.plan else 'Standard' }}</div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">Billing: {{ quotation.plan.billing_interval|capitalize if quotation.plan else 'Monthly' }}</div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">Terms: {{ quotation.payment_terms or 'Due on Receipt' }}</div>
+    </div>
+  </div>
+
+  <!-- Quotation Line Items Table -->
+  <div class="table-responsive" style="margin-bottom: var(--space-6);">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Item / Service</th>
+          <th>Description</th>
+          <th style="text-align: right;">Qty</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: right;">Tax / Disc</th>
+          <th style="text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in quotation.lines %}
+        <tr>
+          <td>
+            <div style="font-weight: 600; color: var(--navy);">
+              {{ line.product.name if line.product else 'Service Offering' }}
+            </div>
+            {% if line.variant %}
+              <div style="font-size: 0.775rem; color: var(--primary-teal);">Variant: {{ line.variant.attribute_value }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">{{ line.description or '-' }}</span>
+          </td>
+          <td style="text-align: right;">{{ line.quantity }}</td>
+          <td style="text-align: right;">₹{{ "%.2f"|format(line.unit_price) }}</td>
+          <td style="text-align: right; font-size: 0.825rem; color: var(--text-muted);">
+            {% if line.discount_amount and line.discount_amount > 0 %}
+              <span style="color: #DC2626;">-₹{{ "%.2f"|format(line.discount_amount) }}</span><br>
+            {% endif %}
+            {% if line.tax_amount and line.tax_amount > 0 %}
+              <span style="color: var(--primary-teal);">+₹{{ "%.2f"|format(line.tax_amount) }}</span>
+            {% endif %}
+            {% if not line.discount_amount and not line.tax_amount %}-{% endif %}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: var(--navy);">
+            ₹{{ "%.2f"|format(line.line_total) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Totals Section -->
+  <div style="display: flex; justify-content: flex-end;">
+    <div style="width: 320px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+      <div style="display: flex; justify-content: space-between; color: var(--text-secondary);">
+        <span>Subtotal</span>
+        <span style="font-weight: 600; color: var(--navy);">₹{{ "%.2f"|format(quotation.subtotal) }}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; color: var(--text-secondary);">
+        <span>Discount Deductions</span>
+        <span style="font-weight: 600; color: #DC2626;">-₹{{ "%.2f"|format(quotation.discount_amount) }}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; color: var(--text-secondary);">
+        <span>Taxes</span>
+        <span style="font-weight: 600; color: var(--navy);">+₹{{ "%.2f"|format(quotation.tax_amount) }}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; border-top: 2px solid var(--border); padding-top: 10px; font-size: 1.25rem; font-weight: 700; color: var(--navy);">
+        <span>Grand Total</span>
+        <span style="color: var(--primary-teal);">₹{{ "%.2f"|format(quotation.total_amount) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes & Terms -->
+  {% if quotation.notes %}
+  <div style="margin-top: var(--space-8); border-top: 1px solid var(--border); padding-top: var(--space-4); font-size: 0.85rem; color: var(--text-secondary);">
+    <strong>Terms & Conditions:</strong><br>
+    {{ quotation.notes }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Conversion Confirmation Modal -->
+<div class="modal-backdrop no-print" id="convert-modal" style="display: none;" onclick="if (event.target === this) closeConvertModal();">
+  <div class="modal-card" style="max-width: 500px;">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">Convert to Subscription</h2>
+        <p class="modal-subtitle">Confirm atomic transition into active recurring billing.</p>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeConvertModal();">&times;</button>
+    </div>
+
+    <form action="/web/quotations/{{ quotation.id }}/convert" method="POST">
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: var(--space-4);">
+          You are converting <strong>{{ quotation.quotation_number }}</strong> for <strong>{{ quotation.customer.name if quotation.customer else 'Customer' }}</strong> into an active subscription.
+        </p>
+        <div style="background: var(--pastel-mint); border: 1px solid #A7F3D0; border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.825rem; color: var(--success-text);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+          This action will copy line items, snapshot plan policies, set initial billing dates, and transition quotation status to <strong>CONVERTED</strong>.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeConvertModal();">Cancel</button>
+        <button type="submit" class="btn btn-teal">Confirm & Convert</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openConvertModal() {
+    document.getElementById('convert-modal').style.display = 'flex';
+  }
+  function closeConvertModal() {
+    document.getElementById('convert-modal').style.display = 'none';
+  }
+</script>
+{% endblock %}

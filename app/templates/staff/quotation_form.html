@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Create Quotation — Subly{% endblock %}
+
+{% block breadcrumb %}
+<div style="display: flex; align-items: center; gap: 8px;">
+  <span>Workspace</span>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <a href="/staff/quotations" style="color: var(--text-secondary); text-decoration: none;">Quotations</a>
+  <span style="color: var(--text-muted);">&rsaquo;</span>
+  <span style="color: var(--primary-teal); font-weight: 500;">New Quotation</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<form action="/web/quotations" method="POST" id="quotation-form">
+  <!-- Top Action Header -->
+  <div class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FD 100%);">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+      <div>
+        <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+          <span class="badge badge-admin">Quotation Builder</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Draft #NEW</span>
+        </div>
+        <h1 style="font-size: 1.5rem; color: var(--navy); margin-bottom: 4px;">
+          Create New Quotation
+        </h1>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">
+          Assemble customer subscription packages, select templates, and calculate tax & discounts.
+        </p>
+      </div>
+
+      <div style="display: flex; gap: var(--space-3);">
+        <button type="submit" name="action_type" value="draft" class="btn btn-outline">
+          Save as Draft
+        </button>
+        <button type="submit" name="action_type" value="confirm" class="btn btn-teal" style="font-weight: 600;">
+          Confirm Quotation
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-6);">
+    <!-- Left Column: Header Info & Dynamic Line Items -->
+    <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+      
+      <!-- Quotation Parameters Card -->
+      <div class="card">
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 14px;">
+          Customer & Validity Parameters
+        </h3>
+
+        <div class="form-grid-2">
+          <!-- Customer Selection -->
+          <div class="form-group">
+            <label class="form-label">Customer <span style="color: var(--danger);">*</span></label>
+            <select name="customer_id" class="form-select" required>
+              <option value="">-- Choose Customer --</option>
+              {% for cust in customers %}
+                <option value="{{ cust.id }}" {% if selected_customer_id|string == cust.id|string %}selected{% endif %}>
+                  {{ cust.name }} ({{ cust.email }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Subscription Plan Selection -->
+          <div class="form-group">
+            <label class="form-label">Subscription Plan <span style="color: var(--danger);">*</span></label>
+            <select name="plan_id" id="quote-plan-select" class="form-select" required>
+              <option value="">-- Choose Plan --</option>
+              {% for p in plans %}
+                <option value="{{ p.id }}" data-price="{{ p.base_price }}" {% if (selected_plan_id and selected_plan_id|string == p.id|string) or (loop.first and not selected_plan_id) %}selected{% endif %}>
+                  {{ p.name }} ({{ p.billing_interval|capitalize }} - ₹{{ p.base_price }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Quotation Date -->
+          <div class="form-group">
+            <label class="form-label">Quotation Start Date <span style="color: var(--danger);">*</span></label>
+            <input type="date" name="start_date" id="quote-start-date" class="form-input" value="{{ today_str }}" required>
+          </div>
+
+          <!-- Expiry Date -->
+          <div class="form-group">
+            <label class="form-label">Expiry / Validity Date <span style="color: var(--danger);">*</span></label>
+            <input type="date" name="expiry_date" id="quote-expiry-date" class="form-input" value="{{ expiry_str }}" required>
+          </div>
+
+          <!-- Template Selector Dropdown -->
+          <div class="form-group form-col-full">
+            <label class="form-label">Start from Preset Template (Optional)</label>
+            <select name="template_id" id="quote-template-select" class="form-select" onchange="onTemplateSelect(this);">
+              <option value="">-- Manual Build (No Preset) --</option>
+              {% for tmpl in templates_list %}
+                <option value="{{ tmpl.id }}" data-validity="{{ tmpl.validity_days }}" data-plan="{{ tmpl.plan_id }}" {% if selected_template_id|string == tmpl.id|string %}selected{% endif %}>
+                  {{ tmpl.name }} ({{ tmpl.validity_days }} days validity)
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Line Item Editor Card -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--navy); margin-bottom: 2px;">
+              Quotation Product Lines
+            </h3>
+            <p style="font-size: 0.825rem; color: var(--text-secondary);">
+              Configure products, quantities, tax slabs, and line-item discounts.
+            </p>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addQuoteLine();" style="display: inline-flex; align-items: center; gap: 6px; border-color: var(--primary-teal); color: var(--primary-teal); font-weight: 600;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>+ Add Line Item</span>
+          </button>
+        </div>
+
+        {% include "staff/partials/quotation_lines.html" %}
+      </div>
+
+      <!-- Internal Notes -->
+      <div class="card">
+        <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--navy); margin-bottom: 8px;">
+          Payment Terms & Customer Notes
+        </h4>
+        <textarea name="notes" class="form-textarea" rows="2" placeholder="Payment due within 15 days. Subject to standard Subly Terms of Service."></textarea>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Live Order Summary -->
+    <div>
+      <div style="position: sticky; top: 20px;">
+        {% include "staff/partials/quotation_summary.html" %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+  function formatINR(val) {
+    const num = isNaN(val) ? 0 : Math.max(0, val);
+    return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function onProductChange(selectElem) {
+    const row = selectElem.closest('tr');
+    const selectedOption = selectElem.options[selectElem.selectedIndex];
+    const price = selectedOption.getAttribute('data-price') || 0;
+    const priceInput = row.querySelector('.line-price');
+    if (priceInput) {
+      priceInput.value = parseFloat(price).toFixed(2);
+    }
+  }
+
+  function onTemplateSelect(selectElem) {
+    const opt = selectElem.options[selectElem.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const validityDays = parseInt(opt.getAttribute('data-validity')) || 30;
+    const planId = opt.getAttribute('data-plan');
+
+    if (planId) {
+      const planSelect = document.getElementById('quote-plan-select');
+      if (planSelect) planSelect.value = planId;
+    }
+
+    const startDateInput = document.getElementById('quote-start-date');
+    const expiryDateInput = document.getElementById('quote-expiry-date');
+    if (startDateInput && expiryDateInput && startDateInput.value) {
+      const d = new Date(startDateInput.value);
+      d.setDate(d.getDate() + validityDays);
+      expiryDateInput.value = d.toISOString().split('T')[0];
+    }
+  }
+
+  function addQuoteLine() {
+    const tbody = document.getElementById('quote-lines-body');
+    const firstRow = tbody.querySelector('.quote-line-row');
+    if (!firstRow) return;
+
+    const newRow = firstRow.cloneNode(true);
+    // Reset values
+    newRow.querySelectorAll('input').forEach(i => {
+      if (i.classList.contains('line-qty')) i.value = 1;
+      else if (i.classList.contains('line-price')) i.value = '0.00';
+      else i.value = '';
+    });
+    newRow.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+    newRow.querySelector('.line-total-text').innerText = '₹0.00';
+    tbody.appendChild(newRow);
+    calculateQuoteTotals();
+  }
+
+  function removeQuoteLine(btn) {
+    const tbody = document.getElementById('quote-lines-body');
+    const rows = tbody.querySelectorAll('.quote-line-row');
+    if (rows.length > 1) {
+      btn.closest('tr').remove();
+      calculateQuoteTotals();
+    } else {
+      alert('A quotation must contain at least one line item.');
+    }
+  }
+
+  function calculateQuoteTotals() {
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let totalTax = 0;
+
+    const rows = document.querySelectorAll('.quote-line-row');
+    rows.forEach(row => {
+      const qty = parseFloat(row.querySelector('.line-qty')?.value) || 0;
+      const unitPrice = parseFloat(row.querySelector('.line-price')?.value) || 0;
+      const lineBase = qty * unitPrice;
+
+      // Discount
+      const discSelect = row.querySelector('.line-discount');
+      let discAmount = 0;
+      if (discSelect && discSelect.selectedIndex > 0) {
+        const opt = discSelect.options[discSelect.selectedIndex];
+        const type = opt.getAttribute('data-type');
+        const val = parseFloat(opt.getAttribute('data-val')) || 0;
+        if (type === 'percentage') {
+          discAmount = lineBase * (val / 100);
+        } else {
+          discAmount = Math.min(lineBase, val);
+        }
+      }
+
+      // Tax
+      const taxSelect = row.querySelector('.line-tax');
+      let taxAmount = 0;
+      const afterDisc = Math.max(0, lineBase - discAmount);
+      if (taxSelect && taxSelect.selectedIndex > 0) {
+        const opt = taxSelect.options[taxSelect.selectedIndex];
+        const rate = parseFloat(opt.getAttribute('data-rate')) || 0;
+        taxAmount = afterDisc * (rate / 100);
+      }
+
+      const lineTotal = afterDisc + taxAmount;
+      const lineTotalElem = row.querySelector('.line-total-text');
+      if (lineTotalElem) {
+        lineTotalElem.innerText = formatINR(lineTotal);
+      }
+
+      subtotal += lineBase;
+      totalDiscount += discAmount;
+      totalTax += taxAmount;
+    });
+
+    const grandTotal = Math.max(0, subtotal - totalDiscount) + totalTax;
+
+    document.getElementById('summary-subtotal').innerText = formatINR(subtotal);
+    document.getElementById('summary-discount').innerText = '-' + formatINR(totalDiscount);
+    document.getElementById('summary-tax').innerText = '+' + formatINR(totalTax);
+    document.getElementById('summary-total').innerText = formatINR(grandTotal);
+  }
+
+  // Trigger initial calculation
+  setTimeout(calculateQuoteTotals, 100);
+</script>
+{% endblock %}

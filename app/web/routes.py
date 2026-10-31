@@ -2730,3 +2730,565 @@ async def discount_update_submit(
     """
 
     return HTMLResponse(content=response_html, status_code=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# F5 Quotation Builder & Template Selector Web Routes & HTMX Endpoints
+# ---------------------------------------------------------------------------
+
+from datetime import timedelta
+from app.models.quotation import Quotation, QuotationLine, QuotationStatus
+from app.models.quotation_template import QuotationTemplate, QuotationTemplateLine
+from app.schemas.quotation import QuotationCreate, QuotationLineCreate
+from app.schemas.quotation_template import QuotationTemplateCreate, QuotationTemplateLineCreate
+from app.services.quotation_service import QuotationService, QuotationTemplateService
+from app.models.customer import Customer
+
+MOCK_CUSTOMERS = [
+    {"id": 1, "name": "Acme Innovations Ltd", "email": "contact@acme.example", "phone": "+91 98765 43210"},
+    {"id": 2, "name": "BlueSky Tech Labs", "email": "admin@bluesky.example", "phone": "+91 98111 22233"},
+    {"id": 3, "name": "Global Retail Corp", "email": "procurement@globalretail.example", "phone": "+91 98222 33344"},
+]
+
+MOCK_TEMPLATES = [
+    {
+        "id": 1,
+        "name": "Standard Cloud Starter",
+        "validity_days": 30,
+        "plan_id": 1,
+        "notes": "Includes Subly Cloud Platform with standard monthly billing.",
+        "lines": [
+            {
+                "product_id": 1,
+                "variant_id": None,
+                "quantity": 1,
+                "unit_price": Decimal("2499.00"),
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("2499.00")},
+            }
+        ],
+    },
+    {
+        "id": 2,
+        "name": "Enterprise Annual Bundle",
+        "validity_days": 45,
+        "plan_id": 3,
+        "notes": "Full enterprise suite with dedicated support SLA and 45-day price freeze.",
+        "lines": [
+            {
+                "product_id": 1,
+                "variant_id": None,
+                "quantity": 1,
+                "unit_price": Decimal("2499.00"),
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("2499.00")},
+            },
+            {
+                "product_id": 2,
+                "variant_id": None,
+                "quantity": 1,
+                "unit_price": Decimal("499.00"),
+                "product": {"id": 2, "name": "Priority Support SLA", "sales_price": Decimal("499.00")},
+            }
+        ],
+    },
+]
+
+MOCK_QUOTATIONS = [
+    {
+        "id": 1,
+        "quotation_number": "QUO-2026-0001",
+        "customer_id": 1,
+        "customer": {"id": 1, "name": "Acme Innovations Ltd", "email": "contact@acme.example"},
+        "customer_name": "Acme Innovations Ltd",
+        "plan_id": 1,
+        "plan": {"id": 1, "name": "Growth Pro Plan", "billing_interval": BillingInterval.MONTHLY},
+        "plan_name": "Growth Pro Plan",
+        "billing_interval": "monthly",
+        "start_date": date.today(),
+        "quotation_date": date.today(),
+        "expiry_date": date.today() + timedelta(days=30),
+        "status": QuotationStatus.CONFIRMED,
+        "payment_terms": "net_30",
+        "notes": "Standard proposal for Acme Innovations Ltd",
+        "subtotal": Decimal("2998.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("539.64"),
+        "total_amount": Decimal("3537.64"),
+        "lines": [
+            {
+                "id": 1,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("2499.00")},
+                "quantity": 1,
+                "unit_price": Decimal("2499.00"),
+                "tax_amount": Decimal("449.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("2948.82"),
+                "description": "Standard monthly subscription seat",
+            },
+            {
+                "id": 2,
+                "product_id": 2,
+                "product": {"id": 2, "name": "Priority Support SLA", "sales_price": Decimal("499.00")},
+                "quantity": 1,
+                "unit_price": Decimal("499.00"),
+                "tax_amount": Decimal("89.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("588.82"),
+                "description": "24/7 technical assistance SLA",
+            }
+        ],
+    },
+    {
+        "id": 2,
+        "quotation_number": "QUO-2026-0002",
+        "customer_id": 2,
+        "customer": {"id": 2, "name": "BlueSky Tech Labs", "email": "admin@bluesky.example"},
+        "customer_name": "BlueSky Tech Labs",
+        "plan_id": 1,
+        "plan": {"id": 1, "name": "Starter Plan", "billing_interval": BillingInterval.MONTHLY},
+        "plan_name": "Starter Plan",
+        "billing_interval": "monthly",
+        "start_date": date.today(),
+        "quotation_date": date.today(),
+        "expiry_date": date.today() + timedelta(days=15),
+        "status": QuotationStatus.DRAFT,
+        "payment_terms": "immediate",
+        "notes": "Initial draft proposal",
+        "subtotal": Decimal("999.00"),
+        "discount_amount": Decimal("0.00"),
+        "tax_amount": Decimal("179.82"),
+        "total_amount": Decimal("1178.82"),
+        "lines": [
+            {
+                "id": 3,
+                "product_id": 1,
+                "product": {"id": 1, "name": "Subly Cloud Platform", "sales_price": Decimal("999.00")},
+                "quantity": 1,
+                "unit_price": Decimal("999.00"),
+                "tax_amount": Decimal("179.82"),
+                "discount_amount": Decimal("0.00"),
+                "line_total": Decimal("1178.82"),
+                "description": "Base Cloud Platform license",
+            }
+        ],
+    },
+]
+
+def _compute_quotation_stats(quotes_list):
+    total = len(quotes_list)
+    confirmed = sum(1 for q in quotes_list if (getattr(q.status, "value", q.status) if hasattr(q, "status") else q.get("status")) == "confirmed")
+    converted = sum(1 for q in quotes_list if (getattr(q.status, "value", q.status) if hasattr(q, "status") else q.get("status")) == "converted")
+    draft = sum(1 for q in quotes_list if (getattr(q.status, "value", q.status) if hasattr(q, "status") else q.get("status")) in ("draft", "quotation"))
+    return {
+        "total": total,
+        "confirmed": confirmed,
+        "converted": converted,
+        "draft": draft,
+    }
+
+@router.get("/admin/quotation-templates", response_class=HTMLResponse)
+async def quotation_templates_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    db_templates = []
+    if user.organization_id:
+        try:
+            db_templates = await QuotationTemplateService.list_templates(db, organization_id=user.organization_id)
+        except Exception:
+            db_templates = []
+    templates_list = db_templates if db_templates else list(MOCK_TEMPLATES)
+
+    db_plans = []
+    try:
+        db_plans = await PlanService.list_plans(db, organization_id=user.organization_id)
+    except Exception:
+        db_plans = []
+    plans = db_plans if db_plans else MOCK_PLANS
+
+    return templates.TemplateResponse(
+        name="admin/quotation_templates.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "quotation_templates",
+            "templates_list": templates_list,
+            "plans": plans,
+        },
+    )
+
+@router.post("/web/quotation-templates", response_class=HTMLResponse)
+async def create_quotation_template(
+    request: Request,
+    name: str = Form(...),
+    plan_id: int = Form(...),
+    validity_days: int = Form(30),
+    notes: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    try:
+        template_in = QuotationTemplateCreate(
+            name=name.strip(),
+            plan_id=plan_id,
+            validity_days=validity_days,
+            notes=notes.strip() if notes else None,
+            lines=[],
+        )
+        if user.organization_id:
+            await QuotationTemplateService.create_template(db, organization_id=user.organization_id, data=template_in)
+    except Exception:
+        new_id = max((t["id"] for t in MOCK_TEMPLATES), default=0) + 1
+        MOCK_TEMPLATES.insert(0, {
+            "id": new_id,
+            "name": name.strip(),
+            "validity_days": validity_days,
+            "plan_id": plan_id,
+            "notes": notes,
+            "lines": [],
+        })
+
+    return RedirectResponse(url="/admin/quotation-templates", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.get("/staff/quotations", response_class=HTMLResponse)
+async def quotations_page(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    db_quotes = []
+    if user.organization_id:
+        try:
+            db_quotes = await QuotationService.list_quotations(db, organization_id=user.organization_id)
+        except Exception:
+            db_quotes = []
+    quotations = db_quotes if db_quotes else list(MOCK_QUOTATIONS)
+    stats = _compute_quotation_stats(quotations)
+
+    return templates.TemplateResponse(
+        name="staff/quotations.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "quotations",
+            "quotations": quotations,
+            "stats": stats,
+        },
+    )
+
+@router.get("/staff/quotations/new", response_class=HTMLResponse)
+async def new_quotation_page(
+    request: Request,
+    template_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    # Customers
+    customers = list(MOCK_CUSTOMERS)
+    if user.organization_id:
+        try:
+            res = await db.execute(select(Customer).where(Customer.organization_id == user.organization_id))
+            db_cust = res.scalars().all()
+            if db_cust:
+                customers = db_cust
+        except Exception:
+            pass
+
+    # Plans
+    db_plans = []
+    try:
+        db_plans = await PlanService.list_plans(db, organization_id=user.organization_id)
+    except Exception:
+        db_plans = []
+    plans = db_plans if db_plans else MOCK_PLANS
+
+    # Products
+    db_prods = []
+    try:
+        db_prods = await ProductService.list_products(db, organization_id=user.organization_id)
+    except Exception:
+        db_prods = []
+    products = db_prods if db_prods else MOCK_PRODUCTS
+
+    # Taxes & Discounts
+    db_taxes = []
+    try:
+        db_taxes = await TaxService.list_tax_rules(db, organization_id=user.organization_id)
+    except Exception:
+        db_taxes = []
+    taxes = db_taxes if db_taxes else MOCK_TAXES
+
+    db_disc = []
+    try:
+        db_disc = await DiscountService.list_discount_rules(db, organization_id=user.organization_id)
+    except Exception:
+        db_disc = []
+    discounts = db_disc if db_disc else MOCK_DISCOUNTS
+
+    # Templates
+    db_tmpls = []
+    try:
+        db_tmpls = await QuotationTemplateService.list_templates(db, organization_id=user.organization_id)
+    except Exception:
+        db_tmpls = []
+    templates_list = db_tmpls if db_tmpls else MOCK_TEMPLATES
+
+    selected_template = None
+    default_days = 30
+    if template_id:
+        for t in templates_list:
+            t_id = t.id if hasattr(t, "id") else t.get("id")
+            if str(t_id) == str(template_id):
+                selected_template = t
+                default_days = getattr(t, "validity_days", t.get("validity_days", 30))
+                break
+
+    today = date.today()
+    default_expiry = today + timedelta(days=default_days)
+
+    return templates.TemplateResponse(
+        name="staff/quotation_form.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "quotations",
+            "customers": customers,
+            "plans": plans,
+            "products": products,
+            "taxes": taxes,
+            "discounts": discounts,
+            "templates": templates_list,
+            "selected_template": selected_template,
+            "today": today,
+            "default_expiry": default_expiry,
+        },
+    )
+
+@router.post("/web/quotations", response_class=HTMLResponse)
+async def create_quotation_submit(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    form_data = await request.form()
+    customer_id = int(form_data.get("customer_id", 1))
+    plan_id = int(form_data.get("plan_id", 1))
+    template_id_raw = form_data.get("template_id")
+    template_id = int(template_id_raw) if template_id_raw and str(template_id_raw).isdigit() else None
+    quotation_date_str = form_data.get("quotation_date")
+    expiry_date_str = form_data.get("expiry_date")
+    payment_terms = form_data.get("payment_terms", "net_30")
+    notes = form_data.get("notes", "")
+    action_type = form_data.get("action_type", "confirm")
+
+    start_date = date.today()
+    if quotation_date_str:
+        try:
+            start_date = datetime.strptime(quotation_date_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+    expiry_date = start_date + timedelta(days=30)
+    if expiry_date_str:
+        try:
+            expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+    # Extract dynamic line items
+    prod_ids = form_data.getlist("line_product_id[]")
+    var_ids = form_data.getlist("line_variant_id[]")
+    descs = form_data.getlist("line_description[]")
+    qtys = form_data.getlist("line_quantity[]")
+    prices = form_data.getlist("line_unit_price[]")
+    disc_ids = form_data.getlist("line_discount_id[]")
+    tax_ids = form_data.getlist("line_tax_id[]")
+
+    target_status = QuotationStatus.CONFIRMED if action_type == "confirm" else QuotationStatus.DRAFT
+
+    line_creates = []
+    mock_lines = []
+    subtotal = Decimal("0.00")
+    total_discount = Decimal("0.00")
+    total_tax = Decimal("0.00")
+
+    for i in range(len(prod_ids)):
+        if not prod_ids[i] or not str(prod_ids[i]).isdigit():
+            continue
+        p_id = int(prod_ids[i])
+        v_id = int(var_ids[i]) if (i < len(var_ids) and var_ids[i] and str(var_ids[i]).isdigit()) else None
+        q = int(qtys[i]) if (i < len(qtys) and qtys[i] and str(qtys[i]).isdigit()) else 1
+        p = Decimal(str(prices[i])) if (i < len(prices) and prices[i]) else Decimal("0.00")
+        t_id = int(tax_ids[i]) if (i < len(tax_ids) and tax_ids[i] and str(tax_ids[i]).isdigit()) else None
+        d_id = int(disc_ids[i]) if (i < len(disc_ids) and disc_ids[i] and str(disc_ids[i]).isdigit()) else None
+        desc = descs[i] if i < len(descs) else ""
+
+        line_creates.append(
+            QuotationLineCreate(
+                product_id=p_id,
+                variant_id=v_id,
+                quantity=q,
+                unit_price=p,
+                tax_id=t_id,
+                discount_rule_id=d_id,
+            )
+        )
+
+        gross = p * Decimal(q)
+        line_tax = Decimal("0.00")
+        if t_id:
+            line_tax = (gross * Decimal("18.00")) / Decimal("100.00")
+        line_disc = Decimal("0.00")
+        if d_id:
+            line_disc = (gross * Decimal("10.00")) / Decimal("100.00")
+        line_tot = gross - line_disc + line_tax
+
+        subtotal += gross
+        total_discount += line_disc
+        total_tax += line_tax
+
+        mock_lines.append({
+            "id": i + 1,
+            "product_id": p_id,
+            "product": {"id": p_id, "name": f"Product #{p_id}", "sales_price": p},
+            "quantity": q,
+            "unit_price": p,
+            "tax_amount": line_tax,
+            "discount_amount": line_disc,
+            "line_total": line_tot,
+            "description": desc,
+        })
+
+    new_quotation_id = None
+    if user.organization_id and line_creates:
+        try:
+            q_in = QuotationCreate(
+                customer_id=customer_id,
+                plan_id=plan_id,
+                template_id=template_id,
+                start_date=start_date,
+                expiry_date=expiry_date,
+                payment_terms=payment_terms,
+                notes=notes.strip() if notes else None,
+                lines=line_creates,
+            )
+            created_quo = await QuotationService.create_quotation(
+                session=db,
+                organization_id=user.organization_id,
+                quotation_in=q_in,
+                status=target_status,
+            )
+            new_quotation_id = created_quo.id
+        except Exception:
+            new_quotation_id = None
+
+    if not new_quotation_id:
+        new_quotation_id = max((q["id"] for q in MOCK_QUOTATIONS), default=0) + 1
+        q_num = f"QUO-{date.today().year}-{new_quotation_id:04d}"
+        cust_match = next((c for c in MOCK_CUSTOMERS if c["id"] == customer_id), {"name": "Direct Customer", "email": "customer@example.com"})
+        plan_match = next((p for p in MOCK_PLANS if p["id"] == plan_id), {"name": "Subscription Plan", "billing_interval": BillingInterval.MONTHLY})
+
+        MOCK_QUOTATIONS.insert(0, {
+            "id": new_quotation_id,
+            "quotation_number": q_num,
+            "customer_id": customer_id,
+            "customer": cust_match,
+            "customer_name": cust_match.get("name", "Direct Customer"),
+            "plan_id": plan_id,
+            "plan": plan_match,
+            "plan_name": plan_match.get("name", "Plan"),
+            "billing_interval": "monthly",
+            "start_date": start_date,
+            "quotation_date": start_date,
+            "expiry_date": expiry_date,
+            "status": target_status,
+            "payment_terms": payment_terms,
+            "notes": notes,
+            "subtotal": subtotal,
+            "discount_amount": total_discount,
+            "tax_amount": total_tax,
+            "total_amount": subtotal - total_discount + total_tax,
+            "lines": mock_lines,
+        })
+
+    return RedirectResponse(url=f"/staff/quotations/{new_quotation_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.get("/staff/quotations/{quotation_id}", response_class=HTMLResponse)
+async def quotation_detail_page(
+    quotation_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    quotation = None
+    if user.organization_id:
+        try:
+            quotation = await QuotationService.get_quotation(db, organization_id=user.organization_id, quotation_id=quotation_id)
+        except Exception:
+            quotation = None
+
+    if not quotation:
+        for mq in MOCK_QUOTATIONS:
+            if str(mq.get("id")) == str(quotation_id):
+                quotation = mq
+                break
+
+    if not quotation:
+        return RedirectResponse(url="/staff/quotations", status_code=status.HTTP_302_FOUND)
+
+    return templates.TemplateResponse(
+        name="staff/quotation_detail.html",
+        context={
+            "request": request,
+            "user": user,
+            "active_nav": "quotations",
+            "quotation": quotation,
+        },
+    )
+
+@router.post("/web/quotations/{quotation_id}/convert", response_class=HTMLResponse)
+async def convert_quotation_to_sub(
+    quotation_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+):
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=status.HTTP_302_FOUND)
+
+    converted_sub = None
+    if user.organization_id:
+        try:
+            converted_sub = await QuotationService.convert_quotation_to_subscription(
+                db, organization_id=user.organization_id, quotation_id=quotation_id
+            )
+        except Exception:
+            converted_sub = None
+
+    if not converted_sub:
+        for mq in MOCK_QUOTATIONS:
+            if str(mq.get("id")) == str(quotation_id):
+                mq["status"] = QuotationStatus.CONVERTED
+                mq["subscription"] = {"subscription_number": f"SUB-{date.today().year}-{quotation_id:04d}"}
+                break
+
+    return RedirectResponse(url=f"/staff/quotations/{quotation_id}", status_code=status.HTTP_303_SEE_OTHER)

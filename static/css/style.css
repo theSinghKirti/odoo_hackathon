@@ -1516,3 +1516,70 @@ a:hover {
 .progress-fill.exhausted {
   background-color: var(--danger);
 }
+
+
+/* ==========================================================================
+   Quotation & Print Media Styles (F5)
+   ========================================================================== */
+.action-btn-group {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  .app-sidebar,
+  .app-topbar,
+  .no-print,
+  .btn,
+  .action-btn-group,
+  #modal-container,
+  #convert-modal,
+  .alert {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block !important;
+  }
+
+  .app-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .app-content {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #DCE5F0 !important;
+    break-inside: avoid;
+  }
+
+  #printable-quotation {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
