@@ -101,11 +101,11 @@ class DiscountRule(Base, TimestampMixin):
             return False
 
         # Minimum quantity check
-        if quantity < self.min_quantity:
+        if self.min_quantity is not None and quantity < self.min_quantity:
             return False
 
         # Minimum purchase amount check
-        if amount < self.min_purchase_amount:
+        if self.min_purchase_amount is not None and amount < self.min_purchase_amount:
             return False
 
         # Product scope check

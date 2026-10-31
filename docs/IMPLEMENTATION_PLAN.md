@@ -110,10 +110,10 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
   - Overdue invoices count and total amount.
 - [x] Apply database covering indexes to guarantee query execution in $< 50\text{ ms}$.
 
-#### Milestone B10: Backend Test Suite & Isolation Verification
-- [ ] Write unit tests for variant math, discount limits, and password validation.
-- [ ] Write integration tests for billing runs, quotation conversion, and Razorpay signature checks.
-- [ ] Write multi-tenant isolation tests (verifying Org A cannot read Org B).
+#### Milestone B10: Backend Test Suite & Isolation Verification *(Completed)*
+- [x] Write unit tests for variant math, discount limits, and password validation.
+- [x] Write integration tests for billing runs, quotation conversion, and Razorpay signature checks.
+- [x] Write multi-tenant isolation tests (verifying Org A cannot read Org B).
 
 ---
 
