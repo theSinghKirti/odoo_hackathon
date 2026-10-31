@@ -236,5 +236,6 @@ async def dashboard_page(
         context={
             "user": user,
             "organization": user.organization,
+            "active_nav": "dashboard",
         },
     )

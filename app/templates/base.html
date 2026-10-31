@@ -3,67 +3,224 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Subscription Manager{% endblock %}</title>
+  <title>{% block title %}Subly — Subscription Management{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   {% block head %}{% endblock %}
 </head>
 <body>
-  <!-- Header / Navbar -->
-  <header class="navbar">
-    <a href="/" class="brand">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-      </svg>
-      Subscription Manager
-    </a>
+  {% if user %}
+    <!-- ================= AUTHENTICATED APP SHELL ================= -->
+    <div class="app-shell">
+      <!-- Left Sidebar -->
+      <aside class="app-sidebar">
+        <div class="sidebar-header">
+          <a href="/dashboard" class="auth-brand" style="margin-bottom: 0;">
+            <div class="auth-brand-logo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <span class="auth-brand-text">Subly</span>
+          </a>
+        </div>
 
-    <nav>
-      <ul class="nav-links">
-        {% if user %}
-          <li><a href="/dashboard">Dashboard</a></li>
-          <li>
-            <span class="badge badge-{{ user.role.value if user.role.value is defined else user.role }}">
-              {{ user.role.value if user.role.value is defined else user.role }}
+        <!-- Navigation Links -->
+        <ul class="sidebar-nav">
+          <li class="nav-item {% if active_nav == 'dashboard' or not active_nav %}active{% endif %}">
+            <a href="/dashboard">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span>Dashboard</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'customers' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Customers</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'products' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              <span>Products</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'plans' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span>Subscription Plans</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'quotations' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <path d="M12 18v-6"/>
+                <path d="M9 15h6"/>
+              </svg>
+              <span>Quotations</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'subscriptions' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>Subscriptions</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'invoices' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+              <span>Invoices</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'payments' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/>
+                <path d="M12 6v2m0 8v2"/>
+              </svg>
+              <span>Payments</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'finance' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Finance / Analytics</span>
+            </a>
+          </li>
+
+          <li class="nav-item {% if active_nav == 'settings' %}active{% endif %}">
+            <a href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span>Settings</span>
+            </a>
+          </li>
+        </ul>
+
+        <!-- Sidebar Tenant Footer -->
+        <div class="sidebar-footer">
+          <div class="tenant-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              {{ user.organization.name if user.organization else 'Subly Workspace' }}
             </span>
-          </li>
-          <li><span style="font-size: 0.9rem; color: var(--text-muted);">{{ user.email }}</span></li>
-          <li>
-            <button 
-              hx-post="/api/v1/auth/logout" 
-              hx-target="body" 
-              hx-push-url="/login"
-              class="btn btn-outline"
-              style="padding: 0.35rem 0.75rem; font-size: 0.85rem;"
-            >
-              Sign Out
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Application Container -->
+      <div class="app-main">
+        <!-- Top Navigation Bar -->
+        <header class="app-topbar">
+          <div class="topbar-left">
+            <button class="mobile-menu-toggle" aria-label="Toggle Navigation">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
             </button>
-          </li>
-        {% else %}
-          <li><a href="/login">Sign In</a></li>
-          <li><a href="/register" class="btn btn-primary" style="padding: 0.4rem 0.9rem; width: auto;">Get Started</a></li>
-        {% endif %}
-      </ul>
-    </nav>
-  </header>
+            <div style="font-size: 0.95rem; font-weight: 600; color: var(--navy);">
+              {% block breadcrumb %}Workspace{% endblock %}
+            </div>
+          </div>
 
-  <!-- Flash Messages / Toast Area -->
-  <div class="container" style="margin-top: 1rem; margin-bottom: 0;">
-    <div id="flash-message">
-      {% block flash %}{% endblock %}
+          <div class="topbar-right">
+            <!-- Notification Bell Icon -->
+            <button class="btn btn-outline btn-icon" title="Notifications" style="color: var(--text-muted);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </button>
+
+            <!-- User Info & Role Badge -->
+            <div class="topbar-user">
+              <span class="badge badge-{{ user.role.value if user.role.value is defined else user.role }}">
+                {{ user.role.value if user.role.value is defined else user.role }}
+              </span>
+              <span style="font-size: 0.85rem; font-weight: 600; color: var(--navy);">
+                {{ user.full_name }}
+              </span>
+              <button 
+                hx-post="/api/v1/auth/logout" 
+                hx-target="body" 
+                hx-push-url="/login"
+                class="btn btn-outline btn-sm"
+                title="Sign Out"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Flash Message Area -->
+        <div style="padding: var(--space-4) var(--space-8) 0 var(--space-8);">
+          <div id="flash-message">
+            {% block flash %}{% endblock %}
+          </div>
+        </div>
+
+        <!-- Dynamic Content Body -->
+        <main class="app-content">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
     </div>
-  </div>
 
-  <!-- Main Content -->
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
+  {% else %}
+    <!-- ================= PUBLIC / AUTHENTICATION SHELL ================= -->
+    <div style="min-height: 100vh; background-color: var(--bg-main);">
+      {{ self.content() }}
+    </div>
+  {% endif %}
 
-  <!-- Footer -->
-  <footer class="footer">
-    <p>&copy; 2026 Subscription Manager. Multi-Tenant SaaS Platform. All rights reserved.</p>
-  </footer>
-
+  <!-- Core Scripts -->
+  <script src="/static/js/main.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
