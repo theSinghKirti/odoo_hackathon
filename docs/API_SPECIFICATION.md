@@ -16,6 +16,10 @@ Subscription Manager serves two types of consumers:
 1. **Hypermedia Web Views (`/admin`, `/staff`, `/portal`):** Full pages and HTMX partials rendered via Jinja2 templates for Admin, Staff, and Customer users.
 2. **REST API Endpoints (`/api/v1/...`):** Standard JSON endpoints for programmatic access, automated billing triggers, and Razorpay webhook ingestion.
 
+> [!NOTE]
+> **Multi-Tenant Security Architecture:**  
+> In accordance with secure multi-tenant design, REST endpoints do not expose raw `{org_id}` parameters in URL paths. Tenant scoping is strictly resolved and verified server-side from the authenticated user's cryptographic JWT/session cookie via the `get_current_organization` dependency. This eliminates Insecure Direct Object Reference (IDOR) attacks.
+
 ---
 
 ## 2. Authentication & Account Security
@@ -83,14 +87,14 @@ Base Path: `/api/v1/auth`
 
 ## 3. Product Catalog, Variants & Add-ons
 
-Base Path: `/api/v1/org/{org_id}/products`
+Base Path: `/api/v1/products`
 
 ### 3.1 List Products
-- **Method:** `GET /api/v1/org/{org_id}/products?product_type=software`
+- **Method:** `GET /api/v1/products?product_type=software`
 - **Response:** `200 OK` (Collection of products with nested variants)
 
 ### 3.2 Create Product
-- **Method:** `POST /api/v1/org/{org_id}/products`
+- **Method:** `POST /api/v1/products`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -105,7 +109,7 @@ Base Path: `/api/v1/org/{org_id}/products`
 - **Response:** `201 Created`
 
 ### 3.3 Add Product Variant (Price Surcharge)
-- **Method:** `POST /api/v1/org/{org_id}/products/{product_id}/variants`
+- **Method:** `POST /api/v1/products/{product_id}/variants`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -122,10 +126,10 @@ Base Path: `/api/v1/org/{org_id}/products`
 
 ## 4. Subscription Plans
 
-Base Path: `/api/v1/org/{org_id}/plans`
+Base Path: `/api/v1/plans`
 
 ### 4.1 Create Plan
-- **Method:** `POST /api/v1/org/{org_id}/plans`
+- **Method:** `POST /api/v1/plans`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -152,7 +156,7 @@ Base Path: `/api/v1/org/{org_id}/plans`
 ## 5. Tax & Discount Rules
 
 ### 5.1 Create Tax Rule
-- **Method:** `POST /api/v1/org/{org_id}/tax-rules`
+- **Method:** `POST /api/v1/taxes`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -164,7 +168,7 @@ Base Path: `/api/v1/org/{org_id}/plans`
 - **Response:** `201 Created`
 
 ### 5.2 Create Discount Rule
-- **Method:** `POST /api/v1/org/{org_id}/discount-rules`
+- **Method:** `POST /api/v1/discounts`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -186,7 +190,7 @@ Base Path: `/api/v1/org/{org_id}/plans`
 ## 6. Quotation Templates & Quotation Operations
 
 ### 6.1 Create Quotation Template
-- **Method:** `POST /api/v1/org/{org_id}/quotation-templates`
+- **Method:** `POST /api/v1/quotation-templates`
 - **Permission:** Admin
 - **Request:**
   ```json
@@ -207,7 +211,7 @@ Base Path: `/api/v1/org/{org_id}/plans`
 - **Response:** `201 Created`
 
 ### 6.2 Create Quotation from Template
-- **Method:** `POST /api/v1/org/{org_id}/quotations`
+- **Method:** `POST /api/v1/quotations`
 - **Permission:** Admin, Staff
 - **Request:**
   ```json
@@ -221,7 +225,7 @@ Base Path: `/api/v1/org/{org_id}/plans`
 - **Response:** `201 Created` (Generates `QUO-2026-0001` with computed lines and expiry date)
 
 ### 6.3 Convert Quotation to Subscription
-- **Method:** `POST /api/v1/org/{org_id}/quotations/{quotation_id}/convert`
+- **Method:** `POST /api/v1/quotations/{quotation_id}/convert`
 - **Permission:** Admin, Staff
 - **Response:** `200 OK`
   ```json
@@ -237,44 +241,44 @@ Base Path: `/api/v1/org/{org_id}/plans`
 
 ## 7. Subscriptions Lifecycle Operations
 
-Base Path: `/api/v1/org/{org_id}/subscriptions`
+Base Path: `/api/v1/subscriptions`
 
 ### 7.1 List Subscriptions (Filtered for Finance Lead / Staff)
-- **Method:** `GET /api/v1/org/{org_id}/subscriptions?status=active&page=1&limit=25`
+- **Method:** `GET /api/v1/subscriptions?status=active&page=1&limit=25`
 - **Performance:** Optimized query with covering indexes executing in $< 50\text{ ms}$.
 
 ### 7.2 Pause Subscription
-- **Method:** `POST /api/v1/org/{org_id}/subscriptions/{id}/pause`
+- **Method:** `POST /api/v1/subscriptions/{id}/pause`
 - **Permission:** Admin, Staff (or Customer if `allow_pause = true`)
 - **Response:** `200 OK` (`status = 'paused'`)
 
 ### 7.3 Resume Subscription
-- **Method:** `POST /api/v1/org/{org_id}/subscriptions/{id}/resume`
+- **Method:** `POST /api/v1/subscriptions/{id}/resume`
 - **Response:** `200 OK` (`status = 'active'`, `next_billing_date` recalculated)
 
 ### 7.4 Close Subscription
-- **Method:** `POST /api/v1/org/{org_id}/subscriptions/{id}/close`
+- **Method:** `POST /api/v1/subscriptions/{id}/close`
 - **Response:** `200 OK` (`status = 'closed'`)
 
 ---
 
 ## 8. Billing Day & Invoicing
 
-Base Path: `/api/v1/org/{org_id}/invoices`
+Base Path: `/api/v1/invoices`
 
 ### 8.1 Execute Billing Sweep (Worker or Manual Trigger)
-- **Method:** `POST /api/v1/org/{org_id}/invoices/trigger-billing-run`
+- **Method:** `POST /api/v1/invoices/trigger-billing-run`
 - **Permission:** Admin
 - **Behavior:** Queries all due active subscriptions, creates Draft invoices, advances billing dates.
 - **Response:** `200 OK` (`{"invoices_created": 42}`)
 
 ### 8.2 Confirm Invoice
-- **Method:** `POST /api/v1/org/{org_id}/invoices/{id}/confirm`
+- **Method:** `POST /api/v1/invoices/{id}/confirm`
 - **Permission:** Admin, Staff
 - **Response:** `200 OK` (`status = 'confirmed'`)
 
 ### 8.3 Download Invoice PDF
-- **Method:** `GET /api/v1/org/{org_id}/invoices/{id}/pdf`
+- **Method:** `GET /api/v1/invoices/{id}/pdf`
 - **Response:** `200 OK` (`Content-Type: application/pdf`)
 
 ---
@@ -282,7 +286,7 @@ Base Path: `/api/v1/org/{org_id}/invoices`
 ## 9. Payments: Offline Multi-Method & Razorpay
 
 ### 9.1 Record Offline Payment
-- **Method:** `POST /api/v1/org/{org_id}/invoices/{invoice_id}/payments`
+- **Method:** `POST /api/v1/invoices/{invoice_id}/payments`
 - **Permission:** Admin, Staff
 - **Request:**
   ```json
@@ -340,10 +344,10 @@ Base Path: `/portal` (Served via Jinja2 + HTMX)
 
 ## 11. Finance Lead Summary & Analytics
 
-Base Path: `/api/v1/org/{org_id}/analytics`
+Base Path: `/api/v1/analytics`
 
 ### 11.1 End-of-Month Executive Summary
-- **Method:** `GET /api/v1/org/{org_id}/analytics/summary`
+- **Method:** `GET /api/v1/analytics/summary`
 - **Permission:** Admin
 - **Response:** `200 OK`
   ```json

@@ -482,6 +482,21 @@ class QuotationService:
         """
         quo = await QuotationService.get_quotation(session, organization_id, quotation_id)
 
+        # Apply row-level lock on PostgreSQL to guarantee mutual exclusion during atomic conversion
+        dialect_name = session.bind.dialect.name if session.bind else ""
+        if dialect_name == "postgresql":
+            lock_stmt = (
+                select(Quotation.id)
+                .where(
+                    and_(
+                        Quotation.id == quotation_id,
+                        Quotation.organization_id == organization_id,
+                    )
+                )
+                .with_for_update()
+            )
+            await session.execute(lock_stmt)
+
         if quo.status == QuotationStatus.CONVERTED:
             raise InvalidQuotationStateError(f"Quotation {quo.quotation_number} has already been converted.")
         if quo.status == QuotationStatus.CANCELLED:

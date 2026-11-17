@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Tuple
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -169,7 +169,26 @@ class DiscountService:
         discount_amount = rule.calculate_discount(base_amount)
 
         if record_usage and discount_amount > Decimal("0.00"):
-            rule.times_used += 1
+            # Atomic conditional update preventing TOCTOU race conditions
+            stmt = (
+                update(DiscountRule)
+                .where(
+                    and_(
+                        DiscountRule.id == rule.id,
+                        DiscountRule.organization_id == organization_id,
+                        DiscountRule.is_active == True,
+                        or_(
+                            DiscountRule.max_uses.is_(None),
+                            DiscountRule.times_used < DiscountRule.max_uses,
+                        ),
+                    )
+                )
+                .values(times_used=DiscountRule.times_used + 1)
+            )
+            result = await session.execute(stmt)
+            if result.rowcount == 0:
+                # Concurrent usage exhausted the limit between eligibility check and update
+                return False, Decimal("0.00")
             await session.commit()
             await session.refresh(rule)
 

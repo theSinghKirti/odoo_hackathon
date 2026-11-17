@@ -172,34 +172,34 @@ DEVELOPER 1 (BACKEND TRACK)                                           DEVELOPER 
   - HTMX inline action buttons: Pause, Resume, Close, Renew (triggers inline modal confirmation and partial swap).
   - Tab for line items and attached Add-ons (toggle on/off).
 
-#### Milestone F7: Invoices Management & Printable Invoice View
-- [ ] Build Invoices List view (`templates/staff/invoices.html`):
+#### Milestone F7: Invoices Management & Printable Invoice View *(Completed)*
+- [x] Build Invoices List view (`templates/staff/invoices.html`):
   - Filter tabs: `Draft`, `Confirmed`, `Paid`, `Overdue`.
   - Color-coded status badges and due dates.
-- [ ] Build Invoice Detail & Printable View (`templates/staff/invoice_detail.html`):
+- [x] Build Invoice Detail & Printable View (`templates/staff/invoice_detail.html`):
   - Clean, professional invoice layout matching Brightloop Software branding.
   - Dedicated print stylesheet (`@media print`) for pixel-perfect PDF export via browser print.
   - Action buttons: "Confirm Invoice", "Cancel Invoice", "Send via Email", "Record Payment".
 
-#### Milestone F8: Multi-Method Payment Modal & Razorpay Checkout UI
-- [ ] Build "Record Offline Payment" modal (`partials/payment_modal.html`):
+#### Milestone F8: Multi-Method Payment Modal & Razorpay Checkout UI *(Completed)*
+- [x] Build "Record Offline Payment" modal (`partials/payment_modal.html`):
   - Fields for Payment Method (Bank Transfer, Cheque, Cash), Amount, Date, and Reference Note.
   - HTMX submission updating invoice balance and status badge without page reload.
-- [ ] Build Customer Online Checkout modal:
+- [x] Build Customer Online Checkout modal:
   - Razorpay checkout modal launcher script.
   - Success/Failure feedback overlays.
 
-#### Milestone F9: Dedicated Customer Portal (`/portal`)
-- [ ] Build Customer Portal Layout (`templates/portal/layout.html`):
+#### Milestone F9: Dedicated Customer Portal (`/portal`) *(Completed)*
+- [x] Build Customer Portal Layout (`templates/portal/layout.html`):
   - Simplified, customer-friendly navigation (Subscriptions, Invoices, Profile).
   - Restricted context: displays only the authenticated customer's records.
-- [ ] Build Customer Dashboard (`templates/portal/dashboard.html`):
+- [x] Build Customer Dashboard (`templates/portal/dashboard.html`):
   - Summary card: Active subscriptions and upcoming renewals.
   - Customer Subscriptions view with self-service Pause/Cancel controls (if permitted by plan).
   - Customer Invoices view with "Download PDF" and "Pay Online" buttons.
 
-#### Milestone F10: Finance Lead Analytics Dashboard
-- [ ] Build Finance Overview (`templates/admin/finance_dashboard.html`):
+#### Milestone F10: Finance Lead Analytics Dashboard *(Completed)*
+- [x] Build Finance Overview (`templates/admin/finance_dashboard.html`):
   - Metric stat cards: Active Subscriptions, Monthly Recurring Revenue (MRR), Annual Recurring Revenue (ARR), Total Collected Revenue.
   - Overdue Invoices chase table: Customer name, overdue days, amount due, and "Chase / Send Reminder" action.
   - Date range and interval filter bar using HTMX partial swaps to keep responses snappy (< 2 seconds).

@@ -193,7 +193,7 @@
       <button type="button" class="modal-close-btn" onclick="closeConvertModal();">&times;</button>
     </div>
 
-    <form action="/web/quotations/{{ quotation.id }}/convert" method="POST">
+    <form action="/web/quotations/{{ quotation.id }}/convert" method="POST" onsubmit="const btn = this.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; btn.innerText = 'Converting...'; }">
       <div class="modal-body">
         <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: var(--space-4);">
           You are converting <strong>{{ quotation.quotation_number }}</strong> for <strong>{{ quotation.customer.name if quotation.customer else 'Customer' }}</strong> into an active subscription.
